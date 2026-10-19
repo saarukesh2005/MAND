@@ -4,6 +4,13 @@ import Testing
 
 @Suite("Framing")
 struct FramingTests {
+    @Test("A lowered frame limit rejects larger frames as too large")
+    func configurableLimit() throws {
+        var decoder = FrameDecoder(maxPayloadBytes: 4_096)
+        #expect(try decoder.append(Framing.encode(Data(count: 4_096))).count == 1)
+        #expect(throws: ProtocolError.tooLarge) { _ = try decoder.append(Framing.encode(Data(count: 4_097))) }
+    }
+
     @Test("Round-trips a payload split across many reads")
     func roundTripAcrossChunks() throws {
         let payload = Data(repeating: 0x41, count: 70_000)
@@ -84,17 +91,18 @@ struct PairingWindowTests {
         #expect(!window.isUsable(at: later))
     }
 
-    @Test("Three wrong proofs close the window")
+    @Test("Too many wrong proofs close the window")
     func attemptLimit() {
         var window = PairingWindow.open(now: start)
         let wrong = Data(repeating: 0, count: 32)
         var outcomes: [PairingWindow.Outcome] = []
-        for _ in 0..<3 {
+        for _ in 0..<PairingWindow.maxAttempts {
             let (outcome, next) = window.attempt(proof: wrong, phone: phone, mac: mac, now: start)
             outcomes.append(outcome)
             window = next
         }
-        #expect(outcomes == [.rejected(.pairingInvalid), .rejected(.pairingInvalid), .rejected(.pairingTooManyAttempts)])
+        #expect(outcomes.dropLast().allSatisfy { $0 == .rejected(.pairingInvalid) })
+        #expect(outcomes.last == .rejected(.pairingTooManyAttempts))
         let correct = PairingProof.compute(secret: window.secret, phone: phone, mac: mac)
         #expect(window.attempt(proof: correct, phone: phone, mac: mac, now: start).0 == .rejected(.pairingTooManyAttempts))
     }

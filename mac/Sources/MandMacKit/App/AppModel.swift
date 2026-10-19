@@ -129,7 +129,12 @@ public final class AppModel {
         case .pairingFinished(let name, let outcome):
             invitation = nil
             if pendingApproval != nil { pendingApproval = nil }
-            pairingNotice = outcome == "paired" ? "Paired with \(name)." : "Pairing with \(name) was declined."
+            pairingNotice = switch outcome {
+            case "paired": "Paired with \(name)."
+            case "timed out": "Pairing with \(name) timed out. Show a new QR code to try again."
+            case "cancelled": "\(name) stopped pairing before it was approved."
+            default: "Pairing with \(name) was declined."
+            }
         case .devicesChanged(let devices):
             self.devices = devices
             if let current = connected, !devices.contains(where: { $0.fingerprint == current.fingerprint }) {

@@ -53,7 +53,7 @@ public struct PairingInvitation: Equatable, Sendable {
 
         let hosts = (query["h"] ?? "").split(separator: ",").map(String.init)
         guard !hosts.isEmpty, hosts.count <= Self.maxHosts,
-              hosts.allSatisfy({ !$0.isEmpty && $0.count <= 64 && $0.allSatisfy(Self.hostCharacters.contains) })
+              hosts.allSatisfy(Self.isIPLiteral)
         else { throw .invalid("bad host list") }
 
         guard let portValue = query["p"].flatMap({ UInt16($0) }), portValue > 0 else { throw .invalid("bad port") }
@@ -63,6 +63,16 @@ public struct PairingInvitation: Equatable, Sendable {
         guard let expiresAt = query["x"].flatMap({ Int64($0) }) else { throw .invalid("bad expiry") }
 
         self.init(name: name, hosts: hosts, port: portValue, fingerprint: fingerprint, secret: secret, expiresAt: expiresAt)
+    }
+
+    /// Only numeric IPv4 or IPv6 addresses — never DNS names — may appear in a QR code.
+    static func isIPLiteral(_ host: String) -> Bool {
+        guard !host.isEmpty, host.utf8.count <= 64, host.allSatisfy(hostCharacters.contains) else { return false }
+        if host.contains(":") { return host.filter { $0 == ":" }.count >= 2 }
+        let parts = host.split(separator: ".", omittingEmptySubsequences: false)
+        return parts.count == 4 && parts.allSatisfy { part in
+            !part.isEmpty && part.count <= 3 && part.allSatisfy(\.isNumber) && (Int(part) ?? 256) <= 255
+        }
     }
 
     public func isExpired(now: Date = Date()) -> Bool {

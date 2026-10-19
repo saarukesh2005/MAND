@@ -55,7 +55,7 @@ struct RootView: View {
             Button("Don’t Allow", role: .cancel) { model.respondToPairing(approved: false) }
             Button("Allow") { model.respondToPairing(approved: true) }
         } message: { request in
-            Text("Only allow phones you own. Security code: \(request.fingerprint.shortDisplay)")
+            Text("Only allow phones you own. Check that your phone shows this security code: \(request.fingerprint.shortDisplay)")
         }
     }
 }

@@ -8,7 +8,14 @@ public final class BridgeServer: @unchecked Sendable {
     public static let defaultPort: UInt16 = 47821
     public static let serviceType = "_mand._tcp"
     static let handshakeTimeout: TimeInterval = 15
+    /// How long a verified phone waits for the user to click Allow before it's dropped.
+    static let approvalTimeout: TimeInterval = 120
     static let tickInterval: TimeInterval = 1
+    /// Caps on connections that haven't finished pairing/handshake (protects against LAN floods).
+    static let maxPendingSessions = 16
+    static let maxPendingPerAddress = 4
+    /// Frame size allowed before a session is ready; hello/pair.request are tiny.
+    static let preReadyMaxFrameBytes = 4_096
 
     public struct PairingRequest: Sendable, Identifiable, Equatable {
         public let id: UUID
@@ -123,11 +130,21 @@ public final class BridgeServer: @unchecked Sendable {
     public func forget(_ fingerprint: Fingerprint) {
         queue.async {
             let name = self.devices.first { $0.fingerprint == fingerprint }?.name ?? "device"
-            self.updateDevices(self.devices.filter { $0.fingerprint != fingerprint })
+            // Stop trusting the session at once — before the goodbye has even been sent.
             for session in self.sessions.values where session.peer == fingerprint {
+                if session.id == self.activeSessionID, let device = session.device {
+                    self.activeSessionID = nil
+                    self.emit(.phoneDisconnected(device, reason: "forgotten on this Mac"))
+                }
+                session.state = .closing
+                session.device = nil
                 session.framed.sendAndClose(.bye(reason: "unpaired"), reason: "device forgotten")
             }
-            self.emit(.log("Forgot \(name)"))
+            if self.updateDevices(self.devices.filter { $0.fingerprint != fingerprint }) {
+                self.emit(.log("Forgot \(name)"))
+            } else {
+                self.emit(.log("Warning: couldn’t save that \(name) was forgotten. It may be trusted again after M’AND restarts — try Forget again."))
+            }
         }
     }
 
@@ -135,7 +152,7 @@ public final class BridgeServer: @unchecked Sendable {
 
     private func startListener(port: UInt16) {
         let parameters = TLS.parameters(identity: identity, requireClientCertificate: true, queue: queue) {
-            [unowned self] fingerprint in self.isAcceptable(fingerprint)
+            [weak self] fingerprint in self?.isAcceptable(fingerprint) ?? false
         }
         parameters.allowLocalEndpointReuse = true
         guard let nwPort = NWEndpoint.Port(rawValue: port), let listener = try? NWListener(using: parameters, on: nwPort) else {
@@ -179,7 +196,15 @@ public final class BridgeServer: @unchecked Sendable {
     }
 
     private func accept(_ connection: NWConnection) {
-        let session = Session(framed: FramedConnection(connection: connection, queue: queue))
+        let pending = sessions.values.filter { !$0.isReady }
+        let address = Self.host(of: connection.endpoint)
+        if pending.count >= Self.maxPendingSessions
+            || pending.filter({ $0.framed.remoteAddress == address }).count >= Self.maxPendingPerAddress {
+            connection.cancel()
+            return
+        }
+        let framed = FramedConnection(connection: connection, queue: queue, maxFrameBytes: Self.preReadyMaxFrameBytes)
+        let session = Session(framed: framed)
         sessions[session.id] = session
         session.framed.start { [weak self, id = session.id] event in self?.handle(event, sessionID: id) }
     }
@@ -204,6 +229,9 @@ public final class BridgeServer: @unchecked Sendable {
             emit(.log("Closed a connection that broke the protocol (\(error.rawValue))"))
         case .closed(let reason):
             sessions[sessionID] = nil
+            if case .awaitingApproval(let request) = session.state {
+                emit(.pairingFinished(name: request.name, outcome: "cancelled"))
+            }
             if activeSessionID == sessionID, let device = session.device {
                 activeSessionID = nil
                 markSeen(device.fingerprint, address: session.framed.remoteAddress)
@@ -220,7 +248,7 @@ public final class BridgeServer: @unchecked Sendable {
                 reject(session, .versionUnsupported); return
             }
             session.version = version
-            session.helloName = hello.name
+            session.helloName = Self.displaySafe(hello.name)
             if let peer = session.peer, let device = devices.first(where: { $0.fingerprint == peer }) {
                 makeReady(session, device: device)
             } else if window?.isUsable(at: Date()) == true {
@@ -267,7 +295,10 @@ public final class BridgeServer: @unchecked Sendable {
         case .verified:
             let request = PairingRequest(id: session.id, name: session.helloName ?? "Android phone", fingerprint: peer)
             session.state = .awaitingApproval(request)
+            session.approvalRequestedAt = Date()
             emit(.approvalNeeded(request))
+            // The secret is used up; close the QR window but keep this phone waiting for the user.
+            endPairingWindow(reason: nil)
         case .rejected(let error):
             emit(.log("Pairing attempt rejected: \(error.rawValue)"))
             if error == .pairingTooManyAttempts { endPairingWindow(reason: "Too many failed pairing attempts") }
@@ -277,7 +308,6 @@ public final class BridgeServer: @unchecked Sendable {
 
     private func finishApproval(id: UUID, approved: Bool) {
         guard let session = sessions[id], case .awaitingApproval(let request) = session.state else { return }
-        endPairingWindow(reason: nil, keeping: session.id)
         guard approved else {
             emit(.pairingFinished(name: request.name, outcome: "declined"))
             reject(session, .pairingRejected, asPairResult: true)
@@ -298,6 +328,7 @@ public final class BridgeServer: @unchecked Sendable {
         }
         session.state = .ready
         session.device = device
+        session.framed.maxFrameBytes = Framing.maxPayloadBytes
         activeSessionID = session.id
         session.framed.send(.sessionReady, version: session.version)
         let seen = markSeen(device.fingerprint, address: session.framed.remoteAddress, name: session.helloName) ?? device
@@ -343,18 +374,23 @@ public final class BridgeServer: @unchecked Sendable {
                 if now.timeIntervalSince(session.createdAt) > Self.handshakeTimeout {
                     session.framed.close(reason: "handshake timed out")
                 }
-            case .awaitingApproval, .closing:
+            case .awaitingApproval(let request):
+                if now.timeIntervalSince(session.approvalRequestedAt ?? now) > Self.approvalTimeout {
+                    emit(.pairingFinished(name: request.name, outcome: "timed out"))
+                    reject(session, .pairingExpired, asPairResult: true)
+                }
+            case .closing:
                 break
             }
         }
     }
 
-    /// Closes the window and rejects anyone still waiting for approval.
-    private func endPairingWindow(reason: String?, keeping kept: UUID? = nil) {
+    /// Closes the QR window. Phones that haven't proved the secret yet are turned away; a phone that
+    /// already proved it keeps waiting for the user's Allow/Don't Allow (it has its own timeout).
+    private func endPairingWindow(reason: String?) {
         guard window != nil else { return }
         window = nil
-        for session in sessions.values where session.id != kept {
-            if case .awaitingApproval = session.state { reject(session, .pairingExpired, asPairResult: true) }
+        for session in sessions.values {
             if case .awaitingPairRequest = session.state { reject(session, .pairingExpired, asPairResult: true) }
         }
         if let reason { emit(.log(reason)) }
@@ -371,14 +407,34 @@ public final class BridgeServer: @unchecked Sendable {
         return updated
     }
 
-    private func updateDevices(_ next: [PairedDevice]) {
+    @discardableResult
+    private func updateDevices(_ next: [PairedDevice]) -> Bool {
         devices = next
+        emit(.devicesChanged(next))
         do {
             try store.save(next)
+            return true
         } catch {
             emit(.log("Could not save paired devices: \(error)"))
+            return false
         }
-        emit(.devicesChanged(next))
+    }
+
+    static func host(of endpoint: NWEndpoint) -> String? {
+        if case .hostPort(let host, _) = endpoint { return "\(host)" }
+        return nil
+    }
+
+    /// Strips control and bidirectional-override characters so a phone can't disguise its name
+    /// in the approval dialog. Falls back to a neutral name if nothing printable is left.
+    static func displaySafe(_ name: String) -> String {
+        let cleaned = String(String.UnicodeScalarView(name.unicodeScalars.filter { scalar in
+            !CharacterSet.controlCharacters.contains(scalar)
+                && !(0x202A...0x202E).contains(scalar.value)
+                && !(0x2066...0x2069).contains(scalar.value)
+                && !(0x200B...0x200F).contains(scalar.value)
+        })).trimmingCharacters(in: .whitespacesAndNewlines)
+        return cleaned.isEmpty ? "Android phone" : cleaned
     }
 
     private var activeSession: Session? { activeSessionID.flatMap { sessions[$0] } }
@@ -403,6 +459,9 @@ final class Session {
     var version = ProtocolVersion.current
     var device: PairedDevice?
     var lastPingSent = Date()
+    var approvalRequestedAt: Date?
+
+    var isReady: Bool { if case .ready = state { true } else { false } }
 
     init(framed: FramedConnection) { self.framed = framed }
 }

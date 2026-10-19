@@ -40,7 +40,7 @@ data class PairingInvitation(
             if (name.utf8Size() > Message.MAX_NAME_BYTES) throw ParseException("name too long")
 
             val hosts = query["h"].orEmpty().split(',').filter { it.isNotEmpty() }
-            if (hosts.isEmpty() || hosts.size > MAX_HOSTS || !hosts.all { HOST_PATTERN.matches(it) }) {
+            if (hosts.isEmpty() || hosts.size > MAX_HOSTS || !hosts.all(::isIpLiteral)) {
                 throw ParseException("bad host list")
             }
             val port = query["p"]?.toIntOrNull()?.takeIf { it in 1..65_535 } ?: throw ParseException("bad port")
@@ -50,6 +50,16 @@ data class PairingInvitation(
             val expiresAt = query["x"]?.toLongOrNull() ?: throw ParseException("bad expiry")
 
             return PairingInvitation(name, hosts, port, fingerprint, secret, expiresAt)
+        }
+
+        /** Only numeric IPv4 or IPv6 addresses — never DNS names — may appear in a QR code. */
+        internal fun isIpLiteral(host: String): Boolean {
+            if (!HOST_PATTERN.matches(host)) return false
+            if (':' in host) return host.count { it == ':' } >= 2
+            val parts = host.split('.')
+            return parts.size == 4 && parts.all { part ->
+                part.isNotEmpty() && part.length <= 3 && part.all(Char::isDigit) && part.toInt() <= 255
+            }
         }
 
         /** RFC 3986 percent-decoding. Unlike URLDecoder, '+' stays '+' (it is not a space here). */

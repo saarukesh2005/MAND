@@ -12,6 +12,7 @@ final class BridgeServerTests {
     let events = Recorder<BridgeServer.Event>()
     let store = InMemoryPairedDeviceStore()
     var approve = true
+    var approvalDelay: TimeInterval = 0
     var server: BridgeServer!
 
     init() throws {
@@ -25,11 +26,16 @@ final class BridgeServerTests {
     /// Starts the server and returns its port. Approval requests are answered with `approve`.
     func startServer() async throws -> UInt16 {
         let shouldApprove = approve
+        let delay = approvalDelay
         let box = ServerBox()
         server = BridgeServer(identity: macIdentity, store: store, deviceName: "Test Mac", preferredPort: 0,
                               advertise: false, addresses: { ["127.0.0.1"] }) { [events] event in
             events.append(event)
-            if case .approvalNeeded(let request) = event { box.server?.resolvePairing(id: request.id, approved: shouldApprove) }
+            if case .approvalNeeded(let request) = event {
+                DispatchQueue.global().asyncAfter(deadline: .now() + delay) {
+                    box.server?.resolvePairing(id: request.id, approved: shouldApprove)
+                }
+            }
         }
         box.server = server
         server.start()
@@ -75,6 +81,49 @@ final class BridgeServerTests {
 
         server.sendText("hello phone")
         #expect(await phone.received.wait { $0 == .text("hello phone") ? true : nil } == true)
+    }
+
+    @Test("Pairing still succeeds when the user takes a few seconds to click Allow")
+    func slowApproval() async throws {
+        approvalDelay = 3 // longer than the server's 1 s housekeeping tick
+        let port = try await startServer()
+        let phone = try await pairedPhone(port: port)
+        #expect(phone.received.all.contains(.pairResult(accepted: true, reason: nil)))
+        #expect(try store.load().map(\.fingerprint) == [phoneIdentity.fingerprint])
+    }
+
+    @Test("Before pairing, a frame over 4 KiB is rejected and the connection closed")
+    func preReadyFrameLimit() async throws {
+        let port = try await startServer()
+        let invitation = try await openWindow()
+        let phone = SimulatedPhone(identity: phoneIdentity)
+        phone.connect(port: port, pinning: invitation.fingerprint)
+        _ = await phone.received.wait { if case .hello = $0 { true } else { nil } }
+        phone.send(.text(String(repeating: "x", count: 5_000)))
+        let code = await phone.received.wait { if case .error(let c, _) = $0 { c } else { nil } }
+        #expect(code == "too_large")
+        #expect(await phone.closed.wait { $0 } != nil)
+    }
+
+    @Test("Half-open connections from one address are capped")
+    func pendingConnectionCap() async throws {
+        let port = try await startServer()
+        _ = try await openWindow()
+        let phones = (0..<(BridgeServer.maxPendingPerAddress + 2)).map { _ in SimulatedPhone(identity: phoneIdentity) }
+        for phone in phones {
+            phone.connect(port: port, pinning: macIdentity.fingerprint)
+            try await Task.sleep(for: .milliseconds(150))
+        }
+        try await Task.sleep(for: .seconds(1))
+        let accepted = phones.filter { phone in phone.received.all.contains { if case .hello = $0 { true } else { false } } }
+        #expect(accepted.count == BridgeServer.maxPendingPerAddress)
+    }
+
+    @Test("Phone names are cleaned of control and direction-override characters")
+    func nameSanitising() {
+        #expect(BridgeServer.displaySafe("Pixel\u{202E}9\n") == "Pixel9")
+        #expect(BridgeServer.displaySafe("\u{200B}\u{0007}") == "Android phone")
+        #expect(BridgeServer.displaySafe("Saarukesh’s Pixel") == "Saarukesh’s Pixel")
     }
 
     @Test("An unpaired phone is refused when no pairing window is open")

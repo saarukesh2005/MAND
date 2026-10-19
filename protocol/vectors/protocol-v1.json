@@ -371,6 +371,21 @@
       "name": "unsupported invitation version",
       "url": "mand://pair?v=9&n=M&h=192.168.1.20&p=47821&f=b3eacd33433b31b5252351032c9b3e7a2e7aa7738d5decdf0dd6c62680853c06&s=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8&x=1",
       "expect": "error"
+    },
+    {
+      "name": "DNS name instead of an IP is rejected",
+      "url": "mand://pair?v=1&n=M&h=dead.beef&p=47821&f=b3eacd33433b31b5252351032c9b3e7a2e7aa7738d5decdf0dd6c62680853c06&s=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8&x=1",
+      "expect": "error"
+    },
+    {
+      "name": "IPv4 octet over 255 is rejected",
+      "url": "mand://pair?v=1&n=M&h=192.168.1.300&p=47821&f=b3eacd33433b31b5252351032c9b3e7a2e7aa7738d5decdf0dd6c62680853c06&s=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8&x=1",
+      "expect": "error"
+    },
+    {
+      "name": "IPv4 with too few parts is rejected",
+      "url": "mand://pair?v=1&n=M&h=10.0.1&p=47821&f=b3eacd33433b31b5252351032c9b3e7a2e7aa7738d5decdf0dd6c62680853c06&s=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8&x=1",
+      "expect": "error"
     }
   ]
 }

@@ -57,7 +57,9 @@ public enum PairingProof {
 /// Immutable — every attempt returns the window's next state.
 public struct PairingWindow: Sendable, Equatable {
     public static let duration: TimeInterval = 300
-    public static let maxAttempts = 3
+    /// The secret has 256 bits, so attempts don't need to be scarce; a higher limit stops a LAN
+    /// device from closing the window (griefing) with a few garbage proofs.
+    public static let maxAttempts = 10
 
     public let secret: Data
     public let expiresAt: Date

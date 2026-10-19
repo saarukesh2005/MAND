@@ -19,8 +19,14 @@ public enum Framing {
 /// After it throws, the connection must be closed; the decoder is not reusable.
 public struct FrameDecoder: Sendable {
     private var buffer: [UInt8] = []
+    /// Frames longer than this are rejected as `tooLarge`. Never above the protocol maximum.
+    public var maxPayloadBytes: Int {
+        didSet { maxPayloadBytes = min(max(maxPayloadBytes, 1), Framing.maxPayloadBytes) }
+    }
 
-    public init() {}
+    public init(maxPayloadBytes: Int = Framing.maxPayloadBytes) {
+        self.maxPayloadBytes = min(max(maxPayloadBytes, 1), Framing.maxPayloadBytes)
+    }
 
     /// Appends received bytes and returns every complete payload now available.
     public mutating func append(_ data: Data) throws(ProtocolError) -> [Data] {
@@ -31,7 +37,7 @@ public struct FrameDecoder: Sendable {
             let length = buffer[offset..<offset + Framing.headerBytes]
                 .reduce(0) { ($0 << 8) | Int($1) }
             guard length > 0 else { throw .malformed }
-            guard length <= Framing.maxPayloadBytes else { throw .tooLarge }
+            guard length <= maxPayloadBytes else { throw .tooLarge }
             let start = offset + Framing.headerBytes
             guard buffer.count - start >= length else { break }
             payloads.append(Data(buffer[start..<start + length]))

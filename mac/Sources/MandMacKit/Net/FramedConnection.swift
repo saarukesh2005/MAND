@@ -16,13 +16,20 @@ public final class FramedConnection: @unchecked Sendable {
     public let connection: NWConnection
     public let queue: DispatchQueue
     public private(set) var lastReceived = Date()
-    private var decoder = FrameDecoder()
+    private var decoder: FrameDecoder
     private var isClosed = false
     private var onEvent: (@Sendable (Event) -> Void)?
 
-    public init(connection: NWConnection, queue: DispatchQueue) {
+    /// Largest frame accepted from the peer. Kept small until the peer is trusted.
+    public var maxFrameBytes: Int {
+        get { decoder.maxPayloadBytes }
+        set { decoder.maxPayloadBytes = newValue }
+    }
+
+    public init(connection: NWConnection, queue: DispatchQueue, maxFrameBytes: Int = Framing.maxPayloadBytes) {
         self.connection = connection
         self.queue = queue
+        self.decoder = FrameDecoder(maxPayloadBytes: maxFrameBytes)
     }
 
     public var remoteAddress: String? {

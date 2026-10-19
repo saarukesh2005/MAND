@@ -36,6 +36,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.onTimeout
 import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * The phone side of M’AND. Owns pairing, the reconnect loop, liveness checks and the test-message chat.
@@ -133,7 +134,8 @@ class BridgeClient private constructor(private val context: Context) {
     /** Unpairs: tells the Mac (if connected), then deletes the pairing on this phone. */
     fun forgetMac() {
         scope.launch {
-            session?.let { runCatching { it.send(Message.Bye("unpaired")) } }
+            // Give the goodbye a moment to reach the Mac so it forgets this phone too.
+            session?.let { current -> withTimeoutOrNull(BYE_TIMEOUT_MS) { runCatching { current.send(Message.Bye("unpaired")) } } }
             stopLink()
             store.clear()
             _chat.value = emptyList()
@@ -285,7 +287,8 @@ class BridgeClient private constructor(private val context: Context) {
             .sortedByDescending { it.serviceName == mac.name }
             .map { it.host to it.port }
         val last = listOfNotNull(mac.lastHost?.let { it to mac.port })
-        return (discovered + last).distinct()
+        // Cap per round so spoofed announcements can't stall reconnecting (pinning still decides trust).
+        return (discovered + last).distinct().take(MAX_CANDIDATES_PER_ROUND)
     }
 
     // ---- Connected session ----
@@ -402,6 +405,8 @@ class BridgeClient private constructor(private val context: Context) {
         private const val HANDSHAKE_TIMEOUT_MS = 10_000L
         private const val APPROVAL_TIMEOUT_MS = 5L * 60 * 1000
         private const val MAX_CHAT_LINES = 100
+        private const val BYE_TIMEOUT_MS = 2_000L
+        private const val MAX_CANDIDATES_PER_ROUND = 4
 
         @Volatile private var instance: BridgeClient? = null
 
