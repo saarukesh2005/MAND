@@ -3,6 +3,9 @@ import SwiftUI
 
 enum AppSection: String, CaseIterable, Identifiable {
     case home = "Home"
+    case files = "Files"
+    case notifications = "Notifications"
+    case mirroring = "Screen Mirroring"
     case devices = "Devices"
     case activity = "Activity"
 
@@ -11,6 +14,9 @@ enum AppSection: String, CaseIterable, Identifiable {
     var symbol: String {
         switch self {
         case .home: "house"
+        case .files: "doc.on.doc"
+        case .notifications: "bell.badge"
+        case .mirroring: "rectangle.on.rectangle"
         case .devices: "iphone"
         case .activity: "list.bullet.rectangle"
         }
@@ -36,6 +42,9 @@ struct RootView: View {
                 } else {
                     switch ui.section {
                     case .home: HomeView()
+                    case .files: FilesView()
+                    case .notifications: NotificationsView()
+                    case .mirroring: MirroringView()
                     case .devices: DevicesView()
                     case .activity: ActivityView()
                     }

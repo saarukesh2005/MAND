@@ -22,6 +22,10 @@ struct MandApp: App {
         }
         .defaultSize(width: 900, height: 620)
 
+        Settings {
+            SettingsView().environment(model)
+        }
+
         MenuBarExtra {
             MenuBarContent().environment(model).environment(ui)
         } label: {
@@ -49,6 +53,17 @@ struct MenuBarContent: View {
             NSApp.activate()
         }
         .keyboardShortcut("o")
+        if model.isConnected {
+            if let status = model.phoneStatus {
+                Text("Battery \(status.battery)%\(status.charging ? " · charging" : "")")
+            }
+            Button("Send Files…") {
+                NSApp.activate()
+                FilePicker.pick { model.sendFiles($0) }
+            }
+            Button("Send Clipboard to Phone") { model.sendClipboard() }
+                .disabled(!model.settings.clipboardEnabled)
+        }
         Button("Pair a Phone…") {
             ui.section = .home
             openWindow(id: "main")
@@ -67,4 +82,5 @@ final class UIState {
     var section: AppSection = .home
     var draft = ""
     var deviceToForget: PairedDevice?
+    var isDropTargeted = false
 }

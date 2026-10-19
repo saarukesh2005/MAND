@@ -31,7 +31,8 @@ struct Card<Content: View>: View {
 
 struct FeatureTile: View {
     enum Status: Equatable {
-        case available, needsPhone, comingSoon(String)
+        case available, needsPhone, phoneUpdate, off
+        case ready(String), setup(String)
     }
 
     let symbol: String
@@ -61,7 +62,10 @@ struct FeatureTile: View {
         switch status {
         case .available: "Ready"
         case .needsPhone: "Connect your phone first"
-        case .comingSoon(let milestone): "Not built yet · \(milestone)"
+        case .phoneUpdate: "Update M’AND on the phone"
+        case .off: "Off · turn on in Settings"
+        case .ready(let note): note
+        case .setup(let note): note
         }
     }
 }

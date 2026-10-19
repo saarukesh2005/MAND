@@ -1,3 +1,4 @@
+import MandCore
 import MandMacKit
 import SwiftUI
 
@@ -9,6 +10,7 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: 20) {
                 StatusCard()
                 if model.isConnected {
+                    QuickActionsCard()
                     TestMessageCard()
                 } else if case .listening = model.serverStatus {
                     TroubleshootingCard()
@@ -37,6 +39,12 @@ struct StatusCard: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title).font(.title2.weight(.semibold))
                     Text(subtitle).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    if model.isConnected, let status = model.phoneStatus {
+                        Label("\(status.battery)%\(status.charging ? " · charging" : "")",
+                              systemImage: Self.batterySymbol(status))
+                            .font(.callout.weight(.medium))
+                            .accessibilityLabel("Phone battery \(status.battery) percent\(status.charging ? ", charging" : "")")
+                    }
                     if let notice = model.pairingNotice {
                         Text(notice).font(.callout).foregroundStyle(.secondary).padding(.top, 2)
                     }
@@ -50,6 +58,17 @@ struct StatusCard: View {
             }
         }
         .accessibilityElement(children: .combine)
+    }
+
+    static func batterySymbol(_ status: AppModel.PhoneStatus) -> String {
+        if status.charging { return "battery.100percent.bolt" }
+        switch status.battery {
+        case ..<13: return "battery.0percent"
+        case ..<38: return "battery.25percent"
+        case ..<63: return "battery.50percent"
+        case ..<88: return "battery.75percent"
+        default: return "battery.100percent"
+        }
     }
 
     private var symbol: String {
@@ -161,18 +180,73 @@ struct TroubleshootingCard: View {
 struct FeaturesGrid: View {
     @Environment(AppModel.self) private var model
 
+    private func status(_ feature: String) -> FeatureTile.Status {
+        guard model.isConnected else { return .needsPhone }
+        return model.phoneSupports(feature) ? .available : .phoneUpdate
+    }
+
+    private var mirroringStatus: FeatureTile.Status {
+        switch model.mirroringState {
+        case .notInstalled: .setup("Needs scrcpy (free)")
+        case .running: .available
+        default: .ready("Uses a USB cable")
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("What you can do").font(.headline)
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 12)], spacing: 12) {
                 FeatureTile(symbol: "text.bubble", title: "Test message",
                             status: model.isConnected ? .available : .needsPhone)
-                FeatureTile(symbol: "doc.on.doc", title: "Send files", status: .comingSoon("Milestone 2"))
-                FeatureTile(symbol: "doc.on.clipboard", title: "Clipboard sharing", status: .comingSoon("Milestone 3"))
-                FeatureTile(symbol: "bell.badge", title: "Phone notifications", status: .comingSoon("Milestone 4"))
-                FeatureTile(symbol: "battery.75percent", title: "Battery level", status: .comingSoon("Milestone 4"))
-                FeatureTile(symbol: "rectangle.on.rectangle", title: "Screen mirroring", status: .comingSoon("Milestone 5"))
+                FeatureTile(symbol: "doc.on.doc", title: "Send files", status: status(Feature.files))
+                FeatureTile(symbol: "doc.on.clipboard", title: "Clipboard sharing",
+                            status: model.settings.clipboardEnabled ? status(Feature.clipboard) : .off)
+                FeatureTile(symbol: "bell.badge", title: "Phone notifications", status: status(Feature.notifications))
+                FeatureTile(symbol: "battery.75percent", title: "Battery level", status: status(Feature.device))
+                FeatureTile(symbol: "rectangle.on.rectangle", title: "Screen mirroring", status: mirroringStatus)
             }
         }
+    }
+}
+
+/// One-click actions available while the phone is connected.
+struct QuickActionsCard: View {
+    @Environment(AppModel.self) private var model
+    @Environment(UIState.self) private var ui
+
+    var body: some View {
+        Card(title: "Quick actions", subtitle: nil) {
+            HStack(spacing: 10) {
+                Button {
+                    FilePicker.pick { model.sendFiles($0) }
+                } label: { Label("Send Files…", systemImage: "square.and.arrow.up") }
+                    .disabled(!model.phoneSupports(Feature.files))
+                Button {
+                    model.sendClipboard()
+                } label: { Label("Send Clipboard", systemImage: "doc.on.clipboard") }
+                    .disabled(!model.settings.clipboardEnabled || !model.phoneSupports(Feature.clipboard))
+                Button {
+                    ui.section = .mirroring
+                } label: { Label("Mirror Screen", systemImage: "rectangle.on.rectangle") }
+            }
+            if let notice = model.clipboardNotice {
+                Text(notice).font(.callout).foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+/// Opens a standard file picker that allows multiple files and folders.
+enum FilePicker {
+    @MainActor
+    static func pick(_ completion: ([URL]) -> Void) {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = true
+        panel.prompt = "Send"
+        panel.message = "Choose files or folders to send to your phone."
+        if panel.runModal() == .OK { completion(panel.urls) }
     }
 }

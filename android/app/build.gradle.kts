@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace = "dev.mand.android"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "dev.mand.android"
