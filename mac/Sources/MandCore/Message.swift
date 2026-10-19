@@ -1,5 +1,14 @@
 import Foundation
 
+/// Optional capabilities announced in `hello.features` (protocol §3a).
+public enum Feature {
+    public static let files = "file.v1"
+    public static let clipboard = "clipboard.v1"
+    public static let device = "device.v1"
+    public static let notifications = "notifications.v1"
+    public static let all: [String] = [files, clipboard, device, notifications]
+}
+
 /// The `hello` body (protocol §3).
 public struct Hello: Equatable, Sendable {
     public enum Platform: String, Sendable { case mac, android }
@@ -8,12 +17,50 @@ public struct Hello: Equatable, Sendable {
     public let platform: Platform
     public let versions: ClosedRange<Int>
     public let app: String
+    public let features: [String]
 
-    public init(name: String, platform: Platform, versions: ClosedRange<Int>, app: String) {
+    public init(name: String, platform: Platform, versions: ClosedRange<Int>, app: String, features: [String] = []) {
         self.name = name
         self.platform = platform
         self.versions = versions
         self.app = app
+        self.features = features
+    }
+}
+
+/// `file.offer` body (protocol §3a).
+public struct FileOffer: Equatable, Sendable {
+    public let tid: String
+    public let name: String
+    public let size: Int64
+    public let sha256: String
+
+    public init(tid: String, name: String, size: Int64, sha256: String) {
+        self.tid = tid
+        self.name = name
+        self.size = size
+        self.sha256 = sha256
+    }
+}
+
+/// `notification.posted` body (protocol §3a).
+public struct PhoneNotification: Equatable, Sendable, Identifiable {
+    public let key: String
+    public let app: String
+    public let appName: String
+    public let title: String?
+    public let text: String?
+    public let time: Int64
+
+    public var id: String { key }
+
+    public init(key: String, app: String, appName: String, title: String?, text: String?, time: Int64) {
+        self.key = key
+        self.app = app
+        self.appName = appName
+        self.title = title
+        self.text = text
+        self.time = time
     }
 }
 
@@ -28,10 +75,26 @@ public enum Message: Equatable, Sendable {
     case text(String)
     case bye(reason: String)
     case error(code: String, message: String?)
+    case fileOffer(FileOffer)
+    case fileAccept(tid: String, offset: Int64)
+    case fileReject(tid: String, reason: String)
+    case fileChunk(tid: String, offset: Int64, data: Data)
+    case fileAck(tid: String, received: Int64)
+    case fileDone(tid: String)
+    case fileResult(tid: String, ok: Bool, reason: String?)
+    case fileCancel(tid: String, reason: String)
+    case clipboardText(String)
+    case deviceStatus(battery: Int, charging: Bool)
+    case notificationPosted(PhoneNotification)
+    case notificationRemoved(key: String)
+    case notificationDismiss(key: String)
     case unknown(type: String)
 
     public static let maxTextBytes = 16_384
     public static let maxNameBytes = 128
+    public static let maxClipboardBytes = 262_144
+    public static let maxFileChunkBytes = 196_608
+    public static let maxFileSize: Int64 = 1 << 40
 
     public var type: String {
         switch self {
@@ -44,7 +107,32 @@ public enum Message: Equatable, Sendable {
         case .text: "text"
         case .bye: "bye"
         case .error: "error"
+        case .fileOffer: "file.offer"
+        case .fileAccept: "file.accept"
+        case .fileReject: "file.reject"
+        case .fileChunk: "file.chunk"
+        case .fileAck: "file.ack"
+        case .fileDone: "file.done"
+        case .fileResult: "file.result"
+        case .fileCancel: "file.cancel"
+        case .clipboardText: "clipboard.text"
+        case .deviceStatus: "device.status"
+        case .notificationPosted: "notification.posted"
+        case .notificationRemoved: "notification.removed"
+        case .notificationDismiss: "notification.dismiss"
         case .unknown(let type): type
+        }
+    }
+
+    /// The feature a message belongs to, or nil for core protocol messages.
+    public var feature: String? {
+        switch self {
+        case .fileOffer, .fileAccept, .fileReject, .fileChunk, .fileAck, .fileDone, .fileResult, .fileCancel:
+            Feature.files
+        case .clipboardText: Feature.clipboard
+        case .deviceStatus: Feature.device
+        case .notificationPosted, .notificationRemoved, .notificationDismiss: Feature.notifications
+        default: nil
         }
     }
 }

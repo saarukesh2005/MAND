@@ -19,9 +19,13 @@ kotlin {
 
 dependencies {
     implementation(libs.kotlinx.serialization.json)
-    testImplementation(kotlin("test-junit"))
+    testImplementation(kotlin("test"))
+    testImplementation(platform(libs.junit.bom))
+    testImplementation(libs.junit.jupiter)
+    testRuntimeOnly(libs.junit.platform.launcher)
 }
 
 tasks.test {
+    useJUnitPlatform()
     systemProperty("mand.vectors", rootProject.file("../protocol/vectors/protocol-v1.json").absolutePath)
 }

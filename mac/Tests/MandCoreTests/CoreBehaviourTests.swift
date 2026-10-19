@@ -42,6 +42,14 @@ struct EnvelopeCodecTests {
         .pairResult(accepted: false, reason: "pairing_rejected"),
         .sessionReady, .ping, .pong(ref: "x1"), .text("héllo 👋"),
         .bye(reason: "unpaired"), .error(code: "not_paired", message: "nope"),
+        .hello(Hello(name: "Pixel", platform: .android, versions: 1...1, app: "0.2.0", features: Feature.all)),
+        .fileOffer(FileOffer(tid: "t1", name: "a/b.txt", size: 10, sha256: String(repeating: "a", count: 64))),
+        .fileAccept(tid: "t1", offset: 4), .fileReject(tid: "t1", reason: "busy"),
+        .fileChunk(tid: "t1", offset: 0, data: Data([1, 2, 3])), .fileAck(tid: "t1", received: 3),
+        .fileDone(tid: "t1"), .fileResult(tid: "t1", ok: false, reason: "integrity"), .fileCancel(tid: "t1", reason: "user"),
+        .clipboardText("copied"), .deviceStatus(battery: 42, charging: true),
+        .notificationPosted(PhoneNotification(key: "k", app: "com.x", appName: "X", title: "T", text: nil, time: 5)),
+        .notificationRemoved(key: "k"), .notificationDismiss(key: "k"),
     ]
 
     @Test("Every message type round-trips", arguments: messages)

@@ -37,6 +37,13 @@ class CoreBehaviourTest {
             Message.PairResult(false, "pairing_rejected"),
             Message.SessionReady, Message.Ping, Message.Pong("x1"), Message.Text("héllo 👋"),
             Message.Bye("unpaired"), Message.Error("not_paired", "nope"),
+            Message.HelloMessage(Hello("Pixel", Hello.Platform.ANDROID, 1..1, "0.2.0", Feature.ALL)),
+            Message.FileOffer("t1", "a/b.txt", 10, "a".repeat(64)), Message.FileAccept("t1", 4),
+            Message.FileReject("t1", "busy"), Message.FileChunk("t1", 0, byteArrayOf(1, 2, 3)),
+            Message.FileAck("t1", 3), Message.FileDone("t1"), Message.FileResult("t1", false, "integrity"),
+            Message.FileCancel("t1", "user"), Message.ClipboardText("copied"), Message.DeviceStatus(42, true),
+            Message.NotificationPosted("k", "com.x", "X", "T", null, 5),
+            Message.NotificationRemoved("k"), Message.NotificationDismiss("k"),
         )
         for (message in messages) {
             val envelope = Envelope(message, id = "id-1", timestampMillis = 42)

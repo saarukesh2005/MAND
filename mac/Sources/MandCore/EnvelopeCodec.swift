@@ -55,8 +55,77 @@ public enum EnvelopeCodec {
         case "error":
             return .error(code: try requiredString(body["code"], maxBytes: 64),
                           message: try optionalString(body["message"], maxBytes: 512))
+        case "file.offer":
+            let size = try int64(body["size"], in: 0...Message.maxFileSize)
+            guard let sha = body["sha256"] as? String, isSHA256Hex(sha) else { throw .malformed }
+            return .fileOffer(FileOffer(tid: try tid(body), name: try requiredString(body["name"], maxBytes: 1_024),
+                                        size: size, sha256: sha))
+        case "file.accept":
+            return .fileAccept(tid: try tid(body), offset: try int64(body["offset"], in: 0...Message.maxFileSize))
+        case "file.reject":
+            return .fileReject(tid: try tid(body), reason: try requiredString(body["reason"], maxBytes: 64))
+        case "file.chunk":
+            guard let text = body["data"] as? String, let data = Data(base64URL: text),
+                  !data.isEmpty, data.count <= Message.maxFileChunkBytes else { throw .malformed }
+            return .fileChunk(tid: try tid(body), offset: try int64(body["offset"], in: 0...Message.maxFileSize), data: data)
+        case "file.ack":
+            return .fileAck(tid: try tid(body), received: try int64(body["received"], in: 0...Message.maxFileSize))
+        case "file.done":
+            return .fileDone(tid: try tid(body))
+        case "file.result":
+            guard let ok = boolean(body["ok"]) else { throw .malformed }
+            return .fileResult(tid: try tid(body), ok: ok, reason: try optionalString(body["reason"], maxBytes: 64))
+        case "file.cancel":
+            return .fileCancel(tid: try tid(body), reason: try requiredString(body["reason"], maxBytes: 64))
+        case "clipboard.text":
+            return .clipboardText(try requiredString(body["text"], maxBytes: Message.maxClipboardBytes))
+        case "device.status":
+            guard let charging = boolean(body["charging"]) else { throw .malformed }
+            return .deviceStatus(battery: Int(try int64(body["battery"], in: 0...100)), charging: charging)
+        case "notification.posted":
+            return .notificationPosted(PhoneNotification(
+                key: try requiredString(body["key"], maxBytes: 256),
+                app: try requiredString(body["app"], maxBytes: 256),
+                appName: try requiredString(body["appName"], maxBytes: 128),
+                title: try optionalString(body["title"], maxBytes: 512),
+                text: try optionalString(body["text"], maxBytes: 4_096),
+                time: try int64(body["time"], in: 0...Int64.max)))
+        case "notification.removed":
+            return .notificationRemoved(key: try requiredString(body["key"], maxBytes: 256))
+        case "notification.dismiss":
+            return .notificationDismiss(key: try requiredString(body["key"], maxBytes: 256))
         default: return .unknown(type: type)
         }
+    }
+
+    static let tidCharacters = Set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-")
+    static let hexCharacters = Set("0123456789abcdef")
+
+    private static func tid(_ body: [String: Any]) throws(ProtocolError) -> String {
+        guard let tid = body["tid"] as? String, !tid.isEmpty, tid.utf8.count <= 64,
+              tid.allSatisfy(tidCharacters.contains) else { throw .malformed }
+        return tid
+    }
+
+    static func isSHA256Hex(_ text: String) -> Bool {
+        text.utf8.count == 64 && text.allSatisfy(hexCharacters.contains)
+    }
+
+    private static func int64(_ value: Any?, in range: ClosedRange<Int64>) throws(ProtocolError) -> Int64 {
+        guard let number = integer(value), range.contains(Int64(number)) else { throw .malformed }
+        return Int64(number)
+    }
+
+    private static func features(_ value: Any?) throws(ProtocolError) -> [String] {
+        guard let value else { return [] }
+        guard let list = value as? [Any], list.count <= 32 else { throw .malformed }
+        var result: [String] = []
+        for item in list {
+            guard let feature = item as? String, !feature.isEmpty, feature.utf8.count <= 32,
+                  feature.allSatisfy(allowedTypeCharacters.contains) else { throw .malformed }
+            result.append(feature)
+        }
+        return result
     }
 
     private static func parseHello(_ body: [String: Any]) throws(ProtocolError) -> Hello {
@@ -69,7 +138,8 @@ public enum EnvelopeCodec {
             name: try requiredString(body["name"], maxBytes: Message.maxNameBytes),
             platform: platform,
             versions: minVersion...maxVersion,
-            app: try requiredString(body["app"], maxBytes: 32)
+            app: try requiredString(body["app"], maxBytes: 32),
+            features: try features(body["features"])
         )
     }
 
@@ -77,7 +147,8 @@ public enum EnvelopeCodec {
         switch message {
         case .hello(let hello):
             ["name": hello.name, "platform": hello.platform.rawValue,
-             "minVersion": hello.versions.lowerBound, "maxVersion": hello.versions.upperBound, "app": hello.app]
+             "minVersion": hello.versions.lowerBound, "maxVersion": hello.versions.upperBound, "app": hello.app,
+             "features": hello.features]
         case .pairRequest(let proof): ["proof": proof]
         case .pairResult(let accepted, let reason):
             reason.map { ["accepted": accepted, "reason": $0] } ?? ["accepted": accepted]
@@ -87,6 +158,23 @@ public enum EnvelopeCodec {
         case .bye(let reason): ["reason": reason]
         case .error(let code, let message):
             message.map { ["code": code, "message": $0] } ?? ["code": code]
+        case .fileOffer(let offer):
+            ["tid": offer.tid, "name": offer.name, "size": offer.size, "sha256": offer.sha256]
+        case .fileAccept(let tid, let offset): ["tid": tid, "offset": offset]
+        case .fileReject(let tid, let reason): ["tid": tid, "reason": reason]
+        case .fileChunk(let tid, let offset, let data): ["tid": tid, "offset": offset, "data": data.base64URLEncoded]
+        case .fileAck(let tid, let received): ["tid": tid, "received": received]
+        case .fileDone(let tid): ["tid": tid]
+        case .fileResult(let tid, let ok, let reason):
+            reason.map { ["tid": tid, "ok": ok, "reason": $0] } ?? ["tid": tid, "ok": ok]
+        case .fileCancel(let tid, let reason): ["tid": tid, "reason": reason]
+        case .clipboardText(let text): ["text": text]
+        case .deviceStatus(let battery, let charging): ["battery": battery, "charging": charging]
+        case .notificationPosted(let n):
+            ["key": n.key, "app": n.app, "appName": n.appName, "time": n.time]
+                .merging(n.title.map { ["title": $0] } ?? [:]) { a, _ in a }
+                .merging(n.text.map { ["text": $0] } ?? [:]) { a, _ in a }
+        case .notificationRemoved(let key), .notificationDismiss(let key): ["key": key]
         }
     }
 

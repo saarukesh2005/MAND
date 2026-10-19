@@ -118,4 +118,25 @@ class SharedVectorTest {
             assertEquals(fields["expiresAt"]!!.jsonPrimitive.long, invitation.expiresAtEpochSeconds, name)
         }
     }
+
+    @Test
+    fun fileNames() {
+        for (case in cases("fileNames")) {
+            val input = case.str("input")
+            val expect = case["expect"]
+            if (expect == null || expect == JsonNull) {
+                assertFailsWith<SafeFileName.Failure>(input.take(40)) { SafeFileName.components(input) }
+            } else {
+                assertEquals(expect.jsonArray.map { it.jsonPrimitive.content }, SafeFileName.components(input), input.take(40))
+            }
+        }
+    }
+
+    @Test
+    fun uniqueNames() {
+        for (case in cases("uniqueNames")) {
+            val existing = case["existing"]!!.jsonArray.map { it.jsonPrimitive.content }.toSet()
+            assertEquals(case.str("expect"), SafeFileName.uniqueName(case.str("name")) { it in existing })
+        }
+    }
 }

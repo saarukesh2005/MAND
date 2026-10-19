@@ -43,15 +43,19 @@ public final class FramedConnection: @unchecked Sendable {
         connection.start(queue: queue)
     }
 
-    public func send(_ message: Message, version: Int = ProtocolVersion.current) {
-        guard !isClosed else { return }
+    /// `completion` runs on `queue` once the frame has been handed to the network (true) or failed (false).
+    public func send(_ message: Message, version: Int = ProtocolVersion.current,
+                     completion: (@Sendable (Bool) -> Void)? = nil) {
+        guard !isClosed else { completion?(false); return }
         do {
             let frame = try Framing.encode(EnvelopeCodec.encode(Envelope(message: message, version: version)))
             connection.send(content: frame, completion: .contentProcessed { [weak self] error in
                 if let error { self?.close(reason: "send failed: \(error.localizedDescription)") }
+                completion?(error == nil)
             })
         } catch {
             close(reason: "could not encode \(message.type)")
+            completion?(false)
         }
     }
 

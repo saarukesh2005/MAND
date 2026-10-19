@@ -49,7 +49,7 @@ Every message is one **frame**:
 
 | type | direction | body | notes |
 |---|---|---|---|
-| `hello` | both | `{name, platform, minVersion, maxVersion, app}` | First message each side sends. `platform` is `"mac"` or `"android"`. |
+| `hello` | both | `{name, platform, minVersion, maxVersion, app, features?}` | First message each side sends. `platform` is `"mac"` or `"android"`. |
 | `pair.request` | phone → Mac | `{proof}` | Only when not yet paired. See §4. |
 | `pair.result` | Mac → phone | `{accepted, reason?}` | `reason` is an error code when rejected. |
 | `session.ready` | Mac → phone | `{}` | The peer is trusted; normal messages may flow. |
@@ -60,6 +60,80 @@ Every message is one **frame**:
 | `error` | both | `{code, message?}` | See §7. The sender usually closes after it. |
 
 Before `session.ready`, the Mac only accepts `hello` and `pair.request`. Anything else is an error, `not_paired`.
+
+## 3a. Feature messages (added for Milestones 2–4)
+
+These are new message types under protocol version 1. Older apps ignore them, as required by §3. Each side lists the features it supports in an optional `hello.features` array: up to 32 strings, each at most 32 bytes, using `[a-z0-9._]`. A side only sends feature messages that the peer advertised. Feature messages are only valid after `session.ready`.
+
+| feature | messages |
+|---|---|
+| `file.v1` | `file.offer`, `file.accept`, `file.reject`, `file.chunk`, `file.ack`, `file.done`, `file.result`, `file.cancel` |
+| `clipboard.v1` | `clipboard.text` |
+| `device.v1` | `device.status` |
+| `notifications.v1` | `notification.posted`, `notification.removed`, `notification.dismiss` |
+
+### File transfer (`file.v1`)
+
+`tid` is the transfer ID: 1–64 bytes of `[A-Za-z0-9_-]`, chosen by the sender.
+
+| type | direction | body |
+|---|---|---|
+| `file.offer` | sender → receiver | `{tid, name, size, sha256}` |
+| `file.accept` | receiver → sender | `{tid, offset}` |
+| `file.reject` | receiver → sender | `{tid, reason}` |
+| `file.chunk` | sender → receiver | `{tid, offset, data}` |
+| `file.ack` | receiver → sender | `{tid, received}` |
+| `file.done` | sender → receiver | `{tid}` |
+| `file.result` | receiver → sender | `{tid, ok, reason?}` |
+| `file.cancel` | either | `{tid, reason}` |
+
+Field rules:
+- **`name`:** a relative path of 1–1024 bytes, using `/` between folders. The receiver **always** cleans it with the safe-file-name rules below and never trusts it as a path.
+- **`size`:** a byte count from 0 to 2^40.
+- **`sha256`:** 64 lowercase hex characters.
+- **`offset`:** where to start, from 0 to `size`. The receiver uses it to resume a partially received file.
+- **`data`:** base64url without padding, decoding to 1–196,608 bytes (192 KiB).
+- **`reject` reasons:** `already_exists` (an identical file is already there), `too_large`, `no_space`, `invalid_name`, `busy`, `disabled`.
+
+How a transfer runs:
+1. **Sending:** chunks must arrive in order, with `offset` equal to the bytes received so far. The sender keeps at most **8 chunks** un-acknowledged.
+2. **Checking:** after `file.done`, the receiver checks the size and SHA-256. If they match, it moves the file into place under a **new, non-clashing name** (`name (2).ext`) and replies `file.result{ok:true}`. Otherwise it deletes the data and replies `ok:false, reason:"integrity"`.
+3. **Interruptions:** if the connection drops, the receiver keeps the partial data, keyed by `sha256` and `size`. The sender offers the file again after reconnecting, and the receiver answers with the resume `offset`.
+
+**Safe file names.** Both apps implement this identically and test it against `vectors.fileNames`:
+1. Split the path on `/` and `\`.
+2. For each component:
+   - remove every code point in Unicode categories Cc and Cf (control, format and direction-override characters);
+   - replace `:` with `_`;
+   - trim ASCII spaces from both ends;
+   - drop the component if it's now empty or `.`;
+   - if it's `..`, **reject the whole name** (path traversal);
+   - if it starts with `.`, replace that first `.` with `_`;
+   - if it's longer than 255 UTF-8 bytes, keep the extension (the text after the last `.`, if that is at position > 0 and ≤ 16 bytes long) and cut the rest down, by whole code points, until it fits.
+3. The result must have 1–32 components; otherwise reject the name.
+4. **Unique names:** `stem.ext` becomes `stem (2).ext`, `stem (3).ext`, and so on. A name without an extension becomes `name (2)`.
+
+### Clipboard (`clipboard.v1`)
+`clipboard.text {text}` carries 1–262,144 UTF-8 bytes and is sent **only after a deliberate user action**, or after the user turns on an explicit auto-send option on the Mac. The receiver applies it only if the user enabled clipboard sharing there. Apps must not send content that the source marks as sensitive or concealed.
+
+### Device status (`device.v1`)
+`device.status {battery, charging}`: battery is an integer from 0 to 100; charging is a boolean. The phone sends it when connected and whenever either value changes.
+
+### Notifications (`notifications.v1`)
+| type | direction | body |
+|---|---|---|
+| `notification.posted` | phone → Mac | `{key, app, appName, title?, text?, time}` |
+| `notification.removed` | phone → Mac | `{key}` |
+| `notification.dismiss` | Mac → phone | `{key}` |
+
+Limits:
+- `key` and `app`: at most 256 bytes.
+- `appName`: at most 128 bytes.
+- `title`: at most 512 bytes.
+- `text`: at most 4,096 bytes. Senders truncate.
+- `time`: Unix milliseconds.
+
+The phone only sends notifications from apps the user allowed.
 
 ## 4. Pairing
 

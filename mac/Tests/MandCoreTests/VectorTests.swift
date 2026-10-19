@@ -92,3 +92,28 @@ struct VectorTests {
         #expect(try PairingInvitation(url: invitation.url) == invitation)
     }
 }
+
+@Suite("Shared file-name vectors")
+struct FileNameVectorTests {
+    @Test("Safe file names")
+    func fileNames() {
+        for vector in SharedVectors.cases("fileNames") {
+            let input = vector["input"] as! String
+            if let expected = vector["expect"] as? [String] {
+                #expect((try? SafeFileName.components(of: input)) == expected, "input: \(input.prefix(40))")
+            } else {
+                #expect(throws: SafeFileName.Failure.self, "input: \(input.prefix(40))") {
+                    _ = try SafeFileName.components(of: input)
+                }
+            }
+        }
+    }
+
+    @Test("Unique names")
+    func uniqueNames() {
+        for vector in SharedVectors.cases("uniqueNames") {
+            let existing = Set(vector["existing"] as! [String])
+            #expect(SafeFileName.uniqueName(vector["name"] as! String, exists: existing.contains) == vector["expect"] as! String)
+        }
+    }
+}

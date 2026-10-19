@@ -33,7 +33,9 @@ public final class BridgeServer: @unchecked Sendable {
         case approvalNeeded(PairingRequest)
         case pairingFinished(name: String, outcome: String)
         case devicesChanged([PairedDevice])
-        case phoneConnected(PairedDevice, address: String?)
+        case phoneConnected(PairedDevice, address: String?, features: Set<String>)
+        /// A feature message (files, clipboard, device, notifications) from the connected phone.
+        case featureMessage(Message)
         case phoneDisconnected(PairedDevice, reason: String)
         case textReceived(String, from: PairedDevice)
         case log(String)
@@ -117,6 +119,14 @@ public final class BridgeServer: @unchecked Sendable {
 
     public func resolvePairing(id: UUID, approved: Bool) {
         queue.async { self.finishApproval(id: id, approved: approved) }
+    }
+
+    /// Sends a message to the connected phone. `completion(false)` if no phone is connected or sending failed.
+    public func send(_ message: Message, completion: (@Sendable (Bool) -> Void)? = nil) {
+        queue.async {
+            guard let session = self.activeSession else { completion?(false); return }
+            session.framed.send(message, version: session.version, completion: completion)
+        }
     }
 
     public func sendText(_ text: String) {
@@ -217,8 +227,8 @@ public final class BridgeServer: @unchecked Sendable {
         case .ready(let peer):
             guard let peer else { session.framed.close(reason: "no client certificate"); return }
             session.peer = peer
-            session.framed.send(.hello(Hello(name: deviceName, platform: .mac,
-                                             versions: ProtocolVersion.supported, app: AppInfo.version)))
+            session.framed.send(.hello(Hello(name: deviceName, platform: .mac, versions: ProtocolVersion.supported,
+                                             app: AppInfo.version, features: Feature.all)))
         case .envelope(let envelope):
             if case .ping = envelope.message {
                 session.framed.send(.pong(ref: envelope.id), version: session.version)
@@ -249,6 +259,7 @@ public final class BridgeServer: @unchecked Sendable {
             }
             session.version = version
             session.helloName = Self.displaySafe(hello.name)
+            session.features = Set(hello.features)
             if let peer = session.peer, let device = devices.first(where: { $0.fingerprint == peer }) {
                 makeReady(session, device: device)
             } else if window?.isUsable(at: Date()) == true {
@@ -271,6 +282,9 @@ public final class BridgeServer: @unchecked Sendable {
                 emit(.log("The phone removed this pairing"))
             }
             session.framed.close(reason: reason == "unpaired" ? "phone unpaired" : "phone closed the app")
+
+        case (.ready, let feature) where feature.feature != nil:
+            emit(.featureMessage(feature))
 
         case (_, .error(let code, _)):
             emit(.log("Phone reported an error: \(code)"))
@@ -333,7 +347,7 @@ public final class BridgeServer: @unchecked Sendable {
         session.framed.send(.sessionReady, version: session.version)
         let seen = markSeen(device.fingerprint, address: session.framed.remoteAddress, name: session.helloName) ?? device
         session.device = seen
-        emit(.phoneConnected(seen, address: session.framed.remoteAddress))
+        emit(.phoneConnected(seen, address: session.framed.remoteAddress, features: session.features))
         emit(.log("\(seen.name) connected"))
     }
 
@@ -460,6 +474,7 @@ final class Session {
     var device: PairedDevice?
     var lastPingSent = Date()
     var approvalRequestedAt: Date?
+    var features: Set<String> = []
 
     var isReady: Bool { if case .ready = state { true } else { false } }
 
