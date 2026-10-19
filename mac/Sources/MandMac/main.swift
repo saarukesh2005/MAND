@@ -1,2 +1,0 @@
-import MandMacKit
-print("placeholder")
