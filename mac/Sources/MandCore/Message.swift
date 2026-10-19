@@ -31,7 +31,7 @@ public enum Message: Equatable, Sendable {
     case unknown(type: String)
 
     public static let maxTextBytes = 16_384
-    public static let maxNameLength = 64
+    public static let maxNameBytes = 128
 
     public var type: String {
         switch self {
@@ -65,4 +65,17 @@ public struct Envelope: Equatable, Sendable {
     }
 
     public static func nowMillis() -> Int64 { Int64(Date().timeIntervalSince1970 * 1000) }
+}
+
+extension String {
+    /// The longest prefix whose UTF-8 encoding fits in `maxBytes`, never splitting a character.
+    public func truncated(toUTF8Bytes maxBytes: Int) -> String {
+        guard utf8.count > maxBytes else { return self }
+        var result = ""
+        for character in self {
+            guard result.utf8.count + String(character).utf8.count <= maxBytes else { break }
+            result.append(character)
+        }
+        return result
+    }
 }

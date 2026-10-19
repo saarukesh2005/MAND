@@ -49,7 +49,7 @@ public struct PairingInvitation: Equatable, Sendable {
 
         guard query["v"] == String(Self.invitationVersion) else { throw .invalid("unsupported pairing code version") }
         let name = query["n"] ?? ""
-        guard name.count <= Message.maxNameLength else { throw .invalid("name too long") }
+        guard name.utf8.count <= Message.maxNameBytes else { throw .invalid("name too long") }
 
         let hosts = (query["h"] ?? "").split(separator: ",").map(String.init)
         guard !hosts.isEmpty, hosts.count <= Self.maxHosts,

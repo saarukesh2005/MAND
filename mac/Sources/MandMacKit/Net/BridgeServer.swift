@@ -55,7 +55,7 @@ public final class BridgeServer: @unchecked Sendable {
                 onEvent: @escaping @Sendable (Event) -> Void) {
         self.identity = identity
         self.store = store
-        self.deviceName = String(deviceName.prefix(Message.maxNameLength))
+        self.deviceName = deviceName.truncated(toUTF8Bytes: Message.maxNameBytes)
         self.preferredPort = preferredPort
         self.advertise = advertise
         self.addresses = addresses

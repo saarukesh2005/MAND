@@ -128,3 +128,14 @@ struct TimingTests {
         #expect(ConnectionTiming.isDead(lastReceived: 0, now: 45))
     }
 }
+
+@Suite("Text limits")
+struct TextLimitTests {
+    @Test("Truncation keeps whole characters within the byte limit")
+    func truncation() {
+        #expect("héllo".truncated(toUTF8Bytes: 2) == "h")
+        #expect("héllo".truncated(toUTF8Bytes: 3) == "hé")
+        #expect("👋👋".truncated(toUTF8Bytes: 5) == "👋")
+        #expect("abc".truncated(toUTF8Bytes: 10) == "abc")
+    }
+}

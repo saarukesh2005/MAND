@@ -3,8 +3,8 @@ import Foundation
 /// Strict JSON encoding/decoding of envelopes (protocol §3).
 /// Decoding treats all input as untrusted: any rule violation throws `.malformed`.
 public enum EnvelopeCodec {
-    static let maxIdLength = 64
-    static let maxTypeLength = 64
+    static let maxIdBytes = 64
+    static let maxTypeBytes = 64
     static let allowedTypeCharacters = Set("abcdefghijklmnopqrstuvwxyz0123456789._")
 
     public static func encode(_ envelope: Envelope) throws(ProtocolError) -> Data {
@@ -25,7 +25,7 @@ public enum EnvelopeCodec {
         guard let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
               let version = integer(object["v"]), version >= 1,
               let type = object["type"] as? String, isValidType(type),
-              let id = object["id"] as? String, !id.isEmpty, id.count <= maxIdLength,
+              let id = object["id"] as? String, !id.isEmpty, id.utf8.count <= maxIdBytes,
               let timestamp = integer(object["ts"]),
               let body = object["body"] as? [String: Any]
         else { throw .malformed }
@@ -34,27 +34,27 @@ public enum EnvelopeCodec {
     }
 
     static func isValidType(_ type: String) -> Bool {
-        !type.isEmpty && type.count <= maxTypeLength && type.allSatisfy(allowedTypeCharacters.contains)
+        !type.isEmpty && type.utf8.count <= maxTypeBytes && type.allSatisfy(allowedTypeCharacters.contains)
     }
 
     private static func parseMessage(type: String, body: [String: Any]) throws(ProtocolError) -> Message {
         switch type {
         case "hello": return .hello(try parseHello(body))
-        case "pair.request": return .pairRequest(proof: try requiredString(body["proof"], maxLength: 128))
+        case "pair.request": return .pairRequest(proof: try requiredString(body["proof"], maxBytes: 128))
         case "pair.result":
             guard let accepted = boolean(body["accepted"]) else { throw .malformed }
-            return .pairResult(accepted: accepted, reason: try optionalString(body["reason"], maxLength: 64))
+            return .pairResult(accepted: accepted, reason: try optionalString(body["reason"], maxBytes: 64))
         case "session.ready": return .sessionReady
         case "ping": return .ping
-        case "pong": return .pong(ref: try requiredString(body["ref"], maxLength: maxIdLength))
+        case "pong": return .pong(ref: try requiredString(body["ref"], maxBytes: maxIdBytes))
         case "text":
             guard let text = body["text"] as? String, !text.isEmpty,
                   text.utf8.count <= Message.maxTextBytes else { throw .malformed }
             return .text(text)
-        case "bye": return .bye(reason: try requiredString(body["reason"], maxLength: 64))
+        case "bye": return .bye(reason: try requiredString(body["reason"], maxBytes: 64))
         case "error":
-            return .error(code: try requiredString(body["code"], maxLength: 64),
-                          message: try optionalString(body["message"], maxLength: 512))
+            return .error(code: try requiredString(body["code"], maxBytes: 64),
+                          message: try optionalString(body["message"], maxBytes: 512))
         default: return .unknown(type: type)
         }
     }
@@ -66,10 +66,10 @@ public enum EnvelopeCodec {
               let maxVersion = integer(body["maxVersion"]), maxVersion >= minVersion
         else { throw .malformed }
         return Hello(
-            name: try requiredString(body["name"], maxLength: Message.maxNameLength),
+            name: try requiredString(body["name"], maxBytes: Message.maxNameBytes),
             platform: platform,
             versions: minVersion...maxVersion,
-            app: try requiredString(body["app"], maxLength: 32)
+            app: try requiredString(body["app"], maxBytes: 32)
         )
     }
 
@@ -92,12 +92,11 @@ public enum EnvelopeCodec {
 
     // MARK: - Strict JSON value helpers
 
-    /// Accepts only real JSON integers (not booleans, not fractions, not strings).
+    /// Accepts only real JSON integers (not booleans, not `1.0`, not strings).
     static func integer(_ value: Any?) -> Int? {
-        guard let number = value as? NSNumber, !isBoolean(number),
-              let exact = Int(exactly: number.doubleValue), Double(exact) == number.doubleValue
-        else { return nil }
-        return number.intValue
+        guard let number = value as? NSNumber, !isBoolean(number), !CFNumberIsFloatType(number),
+              let exact = Int(exactly: number.int64Value) else { return nil }
+        return exact
     }
 
     static func boolean(_ value: Any?) -> Bool? {
@@ -109,13 +108,13 @@ public enum EnvelopeCodec {
         CFGetTypeID(number) == CFBooleanGetTypeID()
     }
 
-    private static func requiredString(_ value: Any?, maxLength: Int) throws(ProtocolError) -> String {
-        guard let string = value as? String, !string.isEmpty, string.count <= maxLength else { throw .malformed }
+    private static func requiredString(_ value: Any?, maxBytes: Int) throws(ProtocolError) -> String {
+        guard let string = value as? String, !string.isEmpty, string.utf8.count <= maxBytes else { throw .malformed }
         return string
     }
 
-    private static func optionalString(_ value: Any?, maxLength: Int) throws(ProtocolError) -> String? {
+    private static func optionalString(_ value: Any?, maxBytes: Int) throws(ProtocolError) -> String? {
         guard let value else { return nil }
-        return try requiredString(value, maxLength: maxLength)
+        return try requiredString(value, maxBytes: maxBytes)
     }
 }

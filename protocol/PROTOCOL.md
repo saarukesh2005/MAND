@@ -35,11 +35,13 @@ Every message is one **frame**:
 
 | Field | Rule |
 |---|---|
-| `v` | Integer ≥ 1. The protocol version the sender is speaking. |
-| `type` | Non-empty string, at most 64 characters, `[a-z0-9._]`. |
-| `id` | Non-empty string, at most 64 characters. Unique per message (UUID recommended). |
+| `v` | Integer ≥ 1 (a JSON integer: `1.0`, `"1"` and `true` are malformed). The protocol version the sender is speaking. |
+| `type` | Non-empty string, at most 64 bytes, `[a-z0-9._]`. |
+| `id` | Non-empty string, at most 64 bytes. Unique per message (UUID recommended). |
 | `ts` | Integer, sender's Unix time in milliseconds. For information only, never trusted for security. |
 | `body` | JSON object (may be `{}`). |
+
+**String limits are measured in UTF-8 bytes**, so both apps count them the same way: `name` ≤ 128, `app` ≤ 32, `proof` ≤ 128, `ref` ≤ 64, `reason`/`code` ≤ 64, error `message` ≤ 512, `text` 1–16,384. Strings must not be empty.
 
 **Unknown `type` values must be ignored** (logged, not fatal). This lets newer apps add messages without breaking older ones.
 
@@ -47,7 +49,7 @@ Every message is one **frame**:
 
 | type | direction | body | notes |
 |---|---|---|---|
-| `hello` | both | `{name, platform, minVersion, maxVersion, app}` | First message each side sends. `platform` is `"mac"` or `"android"`. `name` has at most 64 characters. |
+| `hello` | both | `{name, platform, minVersion, maxVersion, app}` | First message each side sends. `platform` is `"mac"` or `"android"`. |
 | `pair.request` | phone → Mac | `{proof}` | Only when not yet paired. See §4. |
 | `pair.result` | Mac → phone | `{accepted, reason?}` | `reason` is an error code when rejected. |
 | `session.ready` | Mac → phone | `{}` | The peer is trusted; normal messages may flow. |
