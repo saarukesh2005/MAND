@@ -1,0 +1,81 @@
+{
+  "description": "Shared M'AND protocol v1 test vectors. Both MandCore (Swift) and MandAndroid :core (Kotlin) must pass every case.",
+  "framing": [
+    { "name": "small frame", "hex": "000000027b7d", "expect": "frame", "payloadHex": "7b7d" },
+    { "name": "two frames back to back", "hex": "000000027b7d000000025b5d", "expect": "frames", "payloadsHex": ["7b7d", "5b5d"] },
+    { "name": "truncated payload waits for more", "hex": "000000057b7d", "expect": "incomplete" },
+    { "name": "truncated header waits for more", "hex": "0000", "expect": "incomplete" },
+    { "name": "zero length is malformed", "hex": "00000000", "expect": "error", "code": "malformed" },
+    { "name": "length over 1 MiB is too large", "hex": "00100001", "expect": "error", "code": "too_large" },
+    { "name": "length exactly 1 MiB header is accepted (incomplete)", "hex": "00100000", "expect": "incomplete" }
+  ],
+  "envelopes": [
+    { "name": "hello", "json": "{\"v\":1,\"type\":\"hello\",\"id\":\"a1\",\"ts\":1760000000000,\"body\":{\"name\":\"Pixel 9\",\"platform\":\"android\",\"minVersion\":1,\"maxVersion\":1,\"app\":\"0.1.0\"}}", "expect": "ok", "type": "hello" },
+    { "name": "ping", "json": "{\"v\":1,\"type\":\"ping\",\"id\":\"a2\",\"ts\":1,\"body\":{}}", "expect": "ok", "type": "ping" },
+    { "name": "pong", "json": "{\"v\":1,\"type\":\"pong\",\"id\":\"a3\",\"ts\":1,\"body\":{\"ref\":\"a2\"}}", "expect": "ok", "type": "pong" },
+    { "name": "text", "json": "{\"v\":1,\"type\":\"text\",\"id\":\"a4\",\"ts\":1,\"body\":{\"text\":\"Hello from M'AND\"}}", "expect": "ok", "type": "text" },
+    { "name": "pair.request", "json": "{\"v\":1,\"type\":\"pair.request\",\"id\":\"a5\",\"ts\":1,\"body\":{\"proof\":\"9jmsLZ_1Yj3BnUdqbONxOCab03rY7NPyr-kX5TdJu1M\"}}", "expect": "ok", "type": "pair.request" },
+    { "name": "pair.result rejected", "json": "{\"v\":1,\"type\":\"pair.result\",\"id\":\"a6\",\"ts\":1,\"body\":{\"accepted\":false,\"reason\":\"pairing_rejected\"}}", "expect": "ok", "type": "pair.result" },
+    { "name": "session.ready", "json": "{\"v\":1,\"type\":\"session.ready\",\"id\":\"a7\",\"ts\":1,\"body\":{}}", "expect": "ok", "type": "session.ready" },
+    { "name": "bye", "json": "{\"v\":1,\"type\":\"bye\",\"id\":\"a8\",\"ts\":1,\"body\":{\"reason\":\"unpaired\"}}", "expect": "ok", "type": "bye" },
+    { "name": "error", "json": "{\"v\":1,\"type\":\"error\",\"id\":\"a9\",\"ts\":1,\"body\":{\"code\":\"not_paired\"}}", "expect": "ok", "type": "error" },
+    { "name": "unknown type is ignored, not fatal", "json": "{\"v\":1,\"type\":\"future.feature\",\"id\":\"b1\",\"ts\":1,\"body\":{\"x\":1}}", "expect": "ok", "type": "unknown" },
+    { "name": "extra fields are ignored", "json": "{\"v\":1,\"type\":\"ping\",\"id\":\"b2\",\"ts\":1,\"body\":{},\"extra\":true}", "expect": "ok", "type": "ping" },
+    { "name": "not JSON", "json": "hello", "expect": "error", "code": "malformed" },
+    { "name": "JSON array instead of object", "json": "[]", "expect": "error", "code": "malformed" },
+    { "name": "missing type", "json": "{\"v\":1,\"id\":\"c1\",\"ts\":1,\"body\":{}}", "expect": "error", "code": "malformed" },
+    { "name": "empty type", "json": "{\"v\":1,\"type\":\"\",\"id\":\"c2\",\"ts\":1,\"body\":{}}", "expect": "error", "code": "malformed" },
+    { "name": "type with illegal characters", "json": "{\"v\":1,\"type\":\"../etc\",\"id\":\"c3\",\"ts\":1,\"body\":{}}", "expect": "error", "code": "malformed" },
+    { "name": "version zero", "json": "{\"v\":0,\"type\":\"ping\",\"id\":\"c4\",\"ts\":1,\"body\":{}}", "expect": "error", "code": "malformed" },
+    { "name": "version as string", "json": "{\"v\":\"1\",\"type\":\"ping\",\"id\":\"c5\",\"ts\":1,\"body\":{}}", "expect": "error", "code": "malformed" },
+    { "name": "missing id", "json": "{\"v\":1,\"type\":\"ping\",\"ts\":1,\"body\":{}}", "expect": "error", "code": "malformed" },
+    { "name": "id longer than 64", "json": "{\"v\":1,\"type\":\"ping\",\"id\":\"00000000001111111111222222222233333333334444444444555555555566666\",\"ts\":1,\"body\":{}}", "expect": "error", "code": "malformed" },
+    { "name": "body is not an object", "json": "{\"v\":1,\"type\":\"ping\",\"id\":\"c6\",\"ts\":1,\"body\":\"x\"}", "expect": "error", "code": "malformed" },
+    { "name": "hello missing name", "json": "{\"v\":1,\"type\":\"hello\",\"id\":\"c7\",\"ts\":1,\"body\":{\"platform\":\"android\",\"minVersion\":1,\"maxVersion\":1,\"app\":\"0.1.0\"}}", "expect": "error", "code": "malformed" },
+    { "name": "hello with min greater than max", "json": "{\"v\":1,\"type\":\"hello\",\"id\":\"c8\",\"ts\":1,\"body\":{\"name\":\"X\",\"platform\":\"android\",\"minVersion\":3,\"maxVersion\":1,\"app\":\"0.1.0\"}}", "expect": "error", "code": "malformed" },
+    { "name": "hello with unknown platform", "json": "{\"v\":1,\"type\":\"hello\",\"id\":\"c9\",\"ts\":1,\"body\":{\"name\":\"X\",\"platform\":\"windows\",\"minVersion\":1,\"maxVersion\":1,\"app\":\"0.1.0\"}}", "expect": "error", "code": "malformed" },
+    { "name": "text empty", "json": "{\"v\":1,\"type\":\"text\",\"id\":\"d1\",\"ts\":1,\"body\":{\"text\":\"\"}}", "expect": "error", "code": "malformed" },
+    { "name": "text missing", "json": "{\"v\":1,\"type\":\"text\",\"id\":\"d2\",\"ts\":1,\"body\":{}}", "expect": "error", "code": "malformed" },
+    { "name": "pong missing ref", "json": "{\"v\":1,\"type\":\"pong\",\"id\":\"d3\",\"ts\":1,\"body\":{}}", "expect": "error", "code": "malformed" },
+    { "name": "pair.result missing accepted", "json": "{\"v\":1,\"type\":\"pair.result\",\"id\":\"d4\",\"ts\":1,\"body\":{}}", "expect": "error", "code": "malformed" }
+  ],
+  "versionNegotiation": [
+    { "local": [1, 1], "remote": [1, 1], "expect": 1 },
+    { "local": [1, 2], "remote": [1, 5], "expect": 2 },
+    { "local": [1, 1], "remote": [2, 3], "expect": null },
+    { "local": [2, 4], "remote": [1, 3], "expect": 3 }
+  ],
+  "pairingProof": [
+    {
+      "name": "valid proof",
+      "secretB64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+      "phoneFpHex": "948fe603f61dc036b5c596dc09fe3ce3f3d30dc90f024c85f3c82db2ccab679d",
+      "macFpHex": "b3eacd33433b31b5252351032c9b3e7a2e7aa7738d5decdf0dd6c62680853c06",
+      "proofB64": "9jmsLZ_1Yj3BnUdqbONxOCab03rY7NPyr-kX5TdJu1M",
+      "valid": true
+    },
+    {
+      "name": "fingerprints swapped is invalid",
+      "secretB64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+      "phoneFpHex": "948fe603f61dc036b5c596dc09fe3ce3f3d30dc90f024c85f3c82db2ccab679d",
+      "macFpHex": "b3eacd33433b31b5252351032c9b3e7a2e7aa7738d5decdf0dd6c62680853c06",
+      "proofB64": "9fQo7XYkgau0MOVnpNfxxTxSRIl__3dn3UU9Bk4t9Ac",
+      "valid": false
+    }
+  ],
+  "invitations": [
+    {
+      "name": "valid invitation",
+      "url": "mand://pair?v=1&n=Saarukesh%E2%80%99s%20MacBook%20Air&h=192.168.1.20,10.0.0.5&p=47821&f=b3eacd33433b31b5252351032c9b3e7a2e7aa7738d5decdf0dd6c62680853c06&s=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8&x=1760000300",
+      "expect": "ok",
+      "fields": { "name": "Saarukesh’s MacBook Air", "hosts": ["192.168.1.20", "10.0.0.5"], "port": 47821, "fingerprintHex": "b3eacd33433b31b5252351032c9b3e7a2e7aa7738d5decdf0dd6c62680853c06", "secretB64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8", "expiresAt": 1760000300 }
+    },
+    { "name": "wrong scheme", "url": "https://pair?v=1&n=M&h=192.168.1.20&p=47821&f=b3eacd33433b31b5252351032c9b3e7a2e7aa7738d5decdf0dd6c62680853c06&s=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8&x=1", "expect": "error" },
+    { "name": "short fingerprint", "url": "mand://pair?v=1&n=M&h=192.168.1.20&p=47821&f=b3ea&s=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8&x=1", "expect": "error" },
+    { "name": "missing secret", "url": "mand://pair?v=1&n=M&h=192.168.1.20&p=47821&f=b3eacd33433b31b5252351032c9b3e7a2e7aa7738d5decdf0dd6c62680853c06&x=1", "expect": "error" },
+    { "name": "secret not 32 bytes", "url": "mand://pair?v=1&n=M&h=192.168.1.20&p=47821&f=b3eacd33433b31b5252351032c9b3e7a2e7aa7738d5decdf0dd6c62680853c06&s=AAEC&x=1", "expect": "error" },
+    { "name": "port out of range", "url": "mand://pair?v=1&n=M&h=192.168.1.20&p=70000&f=b3eacd33433b31b5252351032c9b3e7a2e7aa7738d5decdf0dd6c62680853c06&s=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8&x=1", "expect": "error" },
+    { "name": "no hosts", "url": "mand://pair?v=1&n=M&h=&p=47821&f=b3eacd33433b31b5252351032c9b3e7a2e7aa7738d5decdf0dd6c62680853c06&s=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8&x=1", "expect": "error" },
+    { "name": "unsupported invitation version", "url": "mand://pair?v=9&n=M&h=192.168.1.20&p=47821&f=b3eacd33433b31b5252351032c9b3e7a2e7aa7738d5decdf0dd6c62680853c06&s=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8&x=1", "expect": "error" }
+  ]
+}

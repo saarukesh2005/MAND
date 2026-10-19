@@ -1,0 +1,34 @@
+# macOS
+.DS_Store
+
+# Swift / SwiftPM
+mac/.build/
+mac/.swiftpm/
+*.xcuserstate
+xcuserdata/
+
+# Built app bundles
+build/
+dist/
+
+# Android / Gradle
+android/.gradle/
+android/build/
+android/**/build/
+android/local.properties
+android/.idea/
+android/.kotlin/
+*.iml
+*.apk
+*.aab
+
+# Secrets — never commit keys, certificates or keystores
+*.p12
+*.pfx
+*.pem
+*.key
+*.cer
+*.jks
+*.keystore
+.env
+.env.*
