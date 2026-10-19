@@ -29,7 +29,7 @@ class PairedMacStore(private val context: Context) {
     }
 
     val pairedMac: Flow<PairedMac?> = context.dataStore.data.map { prefs ->
-        val fingerprint = prefs[Keys.FINGERPRINT]?.let(Fingerprint::fromHex) ?: return@map null
+        val fingerprint = prefs[Keys.FINGERPRINT]?.let { Fingerprint.fromHex(it) } ?: return@map null
         PairedMac(
             fingerprint = fingerprint,
             name = prefs[Keys.NAME] ?: "Mac",

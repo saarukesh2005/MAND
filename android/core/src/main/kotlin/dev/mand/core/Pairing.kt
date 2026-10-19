@@ -60,7 +60,7 @@ object Base64Url {
         if (text.contains('=')) return null
         return try {
             Base64.getUrlDecoder().decode(text)
-        } catch (_: IllegalArgumentException) {
+        } catch (e: IllegalArgumentException) {
             null
         }
     }

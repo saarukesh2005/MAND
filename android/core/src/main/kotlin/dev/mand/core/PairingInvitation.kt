@@ -44,8 +44,8 @@ data class PairingInvitation(
                 throw ParseException("bad host list")
             }
             val port = query["p"]?.toIntOrNull()?.takeIf { it in 1..65_535 } ?: throw ParseException("bad port")
-            val fingerprint = query["f"]?.lowercase()?.let(Fingerprint::fromHex) ?: throw ParseException("bad fingerprint")
-            val secret = query["s"]?.let(Base64Url::decode)?.takeIf { it.size == PairingProof.SECRET_BYTES }
+            val fingerprint = query["f"]?.lowercase()?.let { Fingerprint.fromHex(it) } ?: throw ParseException("bad fingerprint")
+            val secret = query["s"]?.let { Base64Url.decode(it) }?.takeIf { it.size == PairingProof.SECRET_BYTES }
                 ?: throw ParseException("bad secret")
             val expiresAt = query["x"]?.toLongOrNull() ?: throw ParseException("bad expiry")
 

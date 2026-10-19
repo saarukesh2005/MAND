@@ -27,6 +27,8 @@ open "dist/M’AND.app"
    ./gradlew :app:assembleDebug   # builds app/build/outputs/apk/debug/app-debug.apk
    ```
 
+> **If the Android build fails with odd "unterminated quote" errors,** the apostrophe in the folder name `M'AND` is the likely cause (some Android tools mishandle it). Build from a copy at a path without an apostrophe, e.g. `~/Projects/mand`. Swift builds are not affected.
+
 ### Put it on your phone
 1. On the phone, go to Settings → About phone and tap **Build number** 7 times to unlock Developer options.
 2. Turn on Settings → System → Developer options → **USB debugging**.

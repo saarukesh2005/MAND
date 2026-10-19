@@ -41,13 +41,19 @@ class MacSession private constructor(private val socket: SSLSocket, val host: St
      * Starts the single reader for this session's whole life. Blocking socket reads can't be
      * cancelled cleanly, so phases (pairing, handshake, connected) share this one reader via [incoming].
      */
-    fun start(scope: CoroutineScope): Job = scope.launch { endReason = readLoop() }
+    fun start(scope: CoroutineScope): Job = scope.launch {
+        try {
+            readLoop()
+        } finally {
+            incoming.close()
+        }
+    }
 
     private suspend fun readLoop(): String = withContext(Dispatchers.IO) {
-        val decoder = FrameDecoder()
-        val buffer = ByteArray(64 * 1024)
-        val input = socket.inputStream
-        try {
+        val reason = try {
+            val decoder = FrameDecoder()
+            val buffer = ByteArray(64 * 1024)
+            val input = socket.inputStream
             while (true) {
                 val count = input.read(buffer)
                 if (count < 0) break
@@ -62,10 +68,12 @@ class MacSession private constructor(private val socket: SSLSocket, val host: St
             "The Mac sent invalid data (${e.error.wire})"
         } catch (e: IOException) {
             e.message ?: "Connection lost"
-        } finally {
-            incoming.close()
-            close()
         }
+        // Record why before closing the channel, so whoever sees the channel end can read the reason.
+        endReason = reason
+        incoming.close()
+        close()
+        reason
     }
 
     suspend fun send(message: Message) = withContext(Dispatchers.IO) { sendNow(message) }
@@ -80,6 +88,8 @@ class MacSession private constructor(private val socket: SSLSocket, val host: St
 
     fun close() {
         runCatching { socket.close() }
+        // Unblocks a reader stuck on a full channel once nobody is consuming any more.
+        incoming.cancel()
     }
 
     companion object {

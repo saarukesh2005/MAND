@@ -30,7 +30,7 @@ object EnvelopeCodec {
     fun decode(data: ByteArray): Envelope {
         val root = try {
             Json.parseToJsonElement(data.toString(Charsets.UTF_8)) as? JsonObject
-        } catch (_: Exception) {
+        } catch (e: Exception) {
             null
         } ?: malformed()
 

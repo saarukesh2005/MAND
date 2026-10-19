@@ -24,6 +24,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -85,37 +86,56 @@ class BridgeClient private constructor(private val context: Context) {
 
     @Synchronized
     fun stopLink() {
-        linkJob?.cancel()
-        linkJob = null
-        discovery.stop()
-        session?.close()
+        cancelLink()
         scope.launch { refreshIdleState(paused = true) }
     }
 
-    /** Pairs using a scanned QR code. Replaces any existing pairing only once the Mac approves. */
+    /** Stops every connection activity (including the first session after pairing) without touching state. */
     @Synchronized
-    fun pair(qrText: String) {
+    private fun cancelLink() {
+        linkJob?.cancel()
+        linkJob = null
+        pairingJob?.cancel()
+        pairingJob = null
+        isPairing = false
+        discovery.stop()
+        session?.close()
+    }
+
+    /**
+     * Pairs using a scanned QR code. Replaces any existing pairing only once the Mac approves.
+     * Returns false (and starts nothing) if the code is invalid or expired.
+     */
+    @Synchronized
+    fun pair(qrText: String): Boolean {
         val invitation = try {
             PairingInvitation.parse(qrText)
         } catch (e: PairingInvitation.ParseException) {
-            _state.value = LinkState.NotPaired("That isn’t a M’AND pairing code (${e.message}).")
-            return
+            scope.launch { showProblem("That isn’t a M’AND pairing code (${e.message}).") }
+            return false
         }
         if (invitation.isExpired()) {
-            _state.value = LinkState.NotPaired("That QR code has expired. Show a new one on the Mac.")
-            return
+            scope.launch { showProblem("That QR code has expired. Show a new one on the Mac.") }
+            return false
         }
-        stopLink()
-        pairingJob?.cancel()
+        cancelLink()
         isPairing = true
-        pairingJob = scope.launch {
-            try {
+        _state.value = LinkState.Pairing(invitation.name, LinkState.Pairing.Step.CONNECTING)
+        val job = scope.launch {
+            // The pairing job also runs the first connected session; when that session ends on its
+            // own, the normal reconnect loop takes over. Cancellation (pause/forget) skips that.
+            val outcome = try {
                 runPairing(invitation)
             } finally {
                 isPairing = false
             }
-            restartLinkIfStillPaired()
+            when (outcome) {
+                is PairingOutcome.SessionEnded -> restartLinkIfStillPaired()
+                is PairingOutcome.Failed -> showProblem(outcome.message)
+            }
         }
+        pairingJob = job
+        return true
     }
 
     fun sendText(text: String): Boolean {
@@ -136,7 +156,7 @@ class BridgeClient private constructor(private val context: Context) {
         scope.launch {
             // Give the goodbye a moment to reach the Mac so it forgets this phone too.
             session?.let { current -> withTimeoutOrNull(BYE_TIMEOUT_MS) { runCatching { current.send(Message.Bye("unpaired")) } } }
-            stopLink()
+            cancelLink()
             store.clear()
             _chat.value = emptyList()
             _state.value = LinkState.NotPaired("This phone is no longer paired.")
@@ -155,12 +175,19 @@ class BridgeClient private constructor(private val context: Context) {
 
     // ---- Pairing ----
 
-    private suspend fun runPairing(invitation: PairingInvitation) {
-        _state.value = LinkState.Pairing(invitation.name, LinkState.Pairing.Step.CONNECTING)
+    private sealed interface PairingOutcome {
+        data object SessionEnded : PairingOutcome
+        data class Failed(val message: String) : PairingOutcome
+    }
+
+    private suspend fun runPairing(invitation: PairingInvitation): PairingOutcome {
         var lastError = "Couldn’t reach the Mac. Make sure both are on the same Wi-Fi."
         for (host in invitation.hosts) {
             val opened = try {
                 MacSession.open(host, invitation.port, invitation.fingerprint)
+            } catch (e: TimeoutCancellationException) {
+                lastError = describe(e)
+                continue
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -174,17 +201,20 @@ class BridgeClient private constructor(private val context: Context) {
                 store.save(paired)
                 _chat.value = emptyList()
                 runConnected(opened, paired)
-                return
+                return PairingOutcome.SessionEnded
+            } catch (e: TimeoutCancellationException) {
+                // withTimeout's exception is a CancellationException subclass; it's a failure, not a cancel.
+                opened.close()
+                return PairingOutcome.Failed(describe(e))
             } catch (e: CancellationException) {
                 opened.close()
                 throw e
             } catch (e: Exception) {
                 opened.close()
-                _state.value = LinkState.NotPaired(describe(e))
-                return
+                return PairingOutcome.Failed(describe(e))
             }
         }
-        _state.value = LinkState.NotPaired(lastError)
+        return PairingOutcome.Failed(lastError)
     }
 
     /** Runs hello → pair.request → pair.result. Returns the Mac to store once approved. */
@@ -198,7 +228,7 @@ class BridgeClient private constructor(private val context: Context) {
         val result = withTimeout(APPROVAL_TIMEOUT_MS) { nextMeaningful(session) }
         when (val message = result.message) {
             is Message.PairResult -> if (!message.accepted) {
-                throw MacRejectedException(message.reason?.let(ProtocolError::fromWire), message.reason ?: "rejected")
+                throw MacRejectedException(message.reason?.let { ProtocolError.fromWire(it) }, message.reason ?: "rejected")
             }
             is Message.Error -> throw MacRejectedException(ProtocolError.fromWire(message.code), message.code)
             else -> throw MacRejectedException(ProtocolError.MALFORMED, "unexpected ${message.type}")
@@ -229,18 +259,15 @@ class BridgeClient private constructor(private val context: Context) {
             _state.value = LinkState.Searching(mac.name, attempt, lastError)
             val connectedOk = tryConnect(mac) { error -> lastError = error }
             if (store.current() == null) return
-            if (connectedOk) {
-                attempt = 0
-                lastError = null
-            } else {
-                _state.value = LinkState.Searching(mac.name, attempt, lastError)
-                // Wait for the backoff delay, or retry at once when the network changes.
-                select<Unit> {
-                    kick.onReceive { }
-                    onTimeout(ConnectionTiming.backoffMs(attempt)) { }
-                }
-                attempt += 1
+            // After a session ends, start the backoff again (and keep showing why it ended).
+            if (connectedOk) attempt = 0
+            _state.value = LinkState.Searching(mac.name, attempt, lastError)
+            // Wait for the backoff delay, or retry at once when the network changes.
+            select<Unit> {
+                kick.onReceive { }
+                onTimeout(ConnectionTiming.backoffMs(attempt)) { }
             }
+            attempt += 1
         }
     }
 
@@ -262,6 +289,9 @@ class BridgeClient private constructor(private val context: Context) {
                 store.save(mac.copy(lastHost = host, port = port))
                 onError(runConnected(opened, mac.copy(lastHost = host, port = port)))
                 return true
+            } catch (e: TimeoutCancellationException) {
+                opened.close()
+                onError(describe(e))
             } catch (e: CancellationException) {
                 opened.close()
                 throw e
@@ -372,11 +402,17 @@ class BridgeClient private constructor(private val context: Context) {
             when {
                 current is LinkState.Pairing -> current
                 mac == null -> current as? LinkState.NotPaired ?: LinkState.NotPaired()
-                paused -> LinkState.Paused(mac.name)
+                paused -> LinkState.Paused(mac.name, (current as? LinkState.Paused)?.notice)
                 current is LinkState.NotPaired -> LinkState.Paused(mac.name)
                 else -> current
             }
         }
+    }
+
+    /** Shows a problem without losing an existing pairing: Paused (with the notice) if a Mac is still paired. */
+    private suspend fun showProblem(message: String) {
+        val mac = store.current()
+        _state.value = if (mac != null) LinkState.Paused(mac.name, message) else LinkState.NotPaired(message)
     }
 
     private suspend fun restartLinkIfStillPaired() {

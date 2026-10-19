@@ -4,8 +4,17 @@ plugins {
     alias(libs.plugins.kotlin.jvm)
 }
 
+// Target Java 17 bytecode with whatever JDK runs Gradle (Android Studio bundles JDK 21),
+// so no separate JDK 17 download is needed and :app (Java 17) can consume this module.
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
 kotlin {
-    jvmToolchain(17)
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+    }
 }
 
 dependencies {

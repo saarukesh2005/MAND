@@ -28,8 +28,16 @@ class BridgeService : LifecycleService() {
         ensureChannel()
         startForeground(NOTIFICATION_ID, buildNotification(client.state.value), ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
         lifecycleScope.launch {
+            var wasActive = false
             client.state.collect { state ->
-                getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, buildNotification(state))
+                val active = state is LinkState.Connected || state is LinkState.Searching || state is LinkState.Pairing
+                if (active) {
+                    wasActive = true
+                    getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, buildNotification(state))
+                } else if (wasActive) {
+                    // Unpaired, forgotten or paused: no reason to keep a background service and notification.
+                    stopSelf()
+                }
             }
         }
     }

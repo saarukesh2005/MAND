@@ -25,11 +25,14 @@ import dev.mand.android.identity.KeystoreIdentity
 import dev.mand.android.net.BridgeClient
 import dev.mand.android.net.LinkState
 import dev.mand.android.service.BridgeService
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
     private val client by lazy { BridgeClient.get(this) }
     private var permissions by mutableStateOf(PermissionStatus(notifications = false, batteryUnrestricted = false))
+    private var phoneCode by mutableStateOf<String?>(null)
 
     private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
         refreshPermissions()
@@ -37,15 +40,17 @@ class MainActivity : ComponentActivity() {
 
     private val scanner = registerForActivityResult(ScanContract()) { result ->
         result.contents?.let { text ->
-            client.pair(text)
-            BridgeService.start(this)
+            if (client.pair(text)) BridgeService.start(this)
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        val phoneCode = KeystoreIdentity.fingerprint().shortDisplay
+        // First launch generates the Keystore key, which can take a moment — keep it off the main thread.
+        lifecycleScope.launch {
+            phoneCode = withContext(Dispatchers.Default) { KeystoreIdentity.fingerprint().shortDisplay }
+        }
 
         setContent {
             MandTheme {

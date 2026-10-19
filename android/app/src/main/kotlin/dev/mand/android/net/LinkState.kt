@@ -16,7 +16,7 @@ sealed interface LinkState {
     data class Connected(val macName: String, val host: String, val sinceMs: Long) : LinkState
 
     /** Paired, but the connection service isn't running (user stopped it). */
-    data class Paused(val macName: String) : LinkState
+    data class Paused(val macName: String, val notice: String? = null) : LinkState
 }
 
 data class ChatLine(val fromMac: Boolean, val text: String, val atMs: Long)

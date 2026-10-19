@@ -54,7 +54,7 @@ import dev.mand.android.net.ChatLine
 import dev.mand.android.net.LinkState
 
 @Composable
-fun HomeScreen(client: BridgeClient, phoneSecurityCode: String, permissions: PermissionStatus, actions: HomeActions) {
+fun HomeScreen(client: BridgeClient, phoneSecurityCode: String?, permissions: PermissionStatus, actions: HomeActions) {
     val state by client.state.collectAsStateWithLifecycle()
     val chat by client.chat.collectAsStateWithLifecycle()
     var confirmForget by rememberSaveable { mutableStateOf(false) }
@@ -118,7 +118,7 @@ fun HomeScreen(client: BridgeClient, phoneSecurityCode: String, permissions: Per
 }
 
 @Composable
-private fun StatusCard(state: LinkState, phoneSecurityCode: String, actions: HomeActions) {
+private fun StatusCard(state: LinkState, phoneSecurityCode: String?, actions: HomeActions) {
     val (icon, tint, title, subtitle) = describe(state)
     Card {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -140,7 +140,7 @@ private fun StatusCard(state: LinkState, phoneSecurityCode: String, actions: Hom
         }
         if (state is LinkState.Pairing && state.step == LinkState.Pairing.Step.WAITING_FOR_APPROVAL) {
             Text(
-                "Check that the Mac shows this security code:\n$phoneSecurityCode",
+                "Check that the Mac shows this security code:\n${phoneSecurityCode ?: "…"}",
                 style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
                 modifier = Modifier.padding(top = 12.dp),
             )
@@ -174,7 +174,7 @@ private fun describe(state: LinkState): StatusText {
                 "Approve on your Mac", "Click “Allow” on ${state.macName} to finish pairing.")
         }
         is LinkState.Paused -> StatusText(Icons.Outlined.PhonelinkOff, muted, "Paused",
-            "Paired with ${state.macName}. Tap Reconnect to connect again.")
+            (state.notice?.let { "$it\n" } ?: "") + "Paired with ${state.macName}. Tap Reconnect to connect again.")
         is LinkState.NotPaired -> StatusText(Icons.Outlined.PhonelinkOff, muted, "Not paired",
             state.notice ?: "Connect this phone to your Mac in about a minute.")
     }
