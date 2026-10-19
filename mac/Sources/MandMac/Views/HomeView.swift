@@ -143,6 +143,16 @@ struct TroubleshootingCard: View {
                 if !model.isAdvertising {
                     Tip("This Mac isn’t visible on the network yet, so the phone will use the last address it knew.")
                 }
+                if case .listening(let port) = model.serverStatus {
+                    let addresses = LocalAddresses.privateIPv4()
+                    Text(addresses.isEmpty
+                         ? "This Mac isn’t on a local network right now."
+                         : "This Mac’s address: \(addresses.joined(separator: " or ")) (port \(port)). Enter it on the phone if it can’t find the Mac.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .padding(.top, 4)
+                }
             }
         }
     }
