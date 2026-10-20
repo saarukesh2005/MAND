@@ -184,8 +184,9 @@ public final class FileTransferService: @unchecked Sendable {
 
         let fm = FileManager.default
         let root = destination()
-        var folder = root
-        for component in components.dropLast() { folder.appendPathComponent(component, isDirectory: true) }
+        // Must stay inside the download folder even if something in it is a symlink.
+        guard let existing = SafeFileName.contained(components, in: root) else { return reject(offer, "invalid_name") }
+        let folder = existing.deletingLastPathComponent()
         let partFolder = partialFolder
         do {
             try fm.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -195,23 +196,28 @@ public final class FileTransferService: @unchecked Sendable {
         }
 
         // Identical file already there? Don't make a duplicate.
-        let existing = folder.appendingPathComponent(components.last!)
         if Self.fileSize(existing) == offer.size, Self.sha256Hex(of: existing) == offer.sha256 {
             sendMessage(.fileReject(tid: offer.tid, reason: "already_exists"), nil)
-            items.append(Item(id: offer.tid, name: components.joined(separator: "/"), direction: .incoming,
-                              size: offer.size, transferred: offer.size, bytesPerSecond: 0, state: .alreadyThere,
-                              savedURL: existing))
+            append(Item(id: offer.tid, name: components.joined(separator: "/"), direction: .incoming,
+                        size: offer.size, transferred: offer.size, bytesPerSecond: 0, state: .alreadyThere,
+                        savedURL: existing))
             return
         }
 
         // Resume a partial download of the same content if we have one.
         let partURL = partFolder.appendingPathComponent("\(offer.sha256)-\(offer.size).part")
+        // Two transfers of the same content at once would share (and corrupt) one partial file.
+        guard !incoming.values.contains(where: { $0.partURL == partURL }) else { return reject(offer, "busy") }
         var already = Self.fileSize(partURL) ?? 0
         if already > offer.size {
             try? fm.removeItem(at: partURL)
             already = 0
         }
-        if Self.availableSpace(at: root) - Self.freeSpaceMargin < offer.size - already { return reject(offer, "no_space") }
+        // Count space already promised to other incoming transfers, not just this one.
+        let reserved = incoming.values.reduce(Int64(0)) { $0 + ($1.offer.size - $1.received) }
+        if Self.availableSpace(at: root) - Self.freeSpaceMargin < offer.size - already + reserved {
+            return reject(offer, "no_space")
+        }
         if !fm.fileExists(atPath: partURL.path) { fm.createFile(atPath: partURL.path, contents: nil) }
 
         guard let handle = try? FileHandle(forUpdating: partURL) else { return reject(offer, "no_space") }
@@ -234,8 +240,8 @@ public final class FileTransferService: @unchecked Sendable {
         if let index = items.firstIndex(where: { $0.direction == .incoming && $0.name == name && $0.state == .interrupted }) {
             items.remove(at: index)
         }
-        items.append(Item(id: offer.tid, name: name, direction: .incoming, size: offer.size,
-                          transferred: already, bytesPerSecond: 0, state: .active, savedURL: nil))
+        append(Item(id: offer.tid, name: name, direction: .incoming, size: offer.size,
+                    transferred: already, bytesPerSecond: 0, state: .active, savedURL: nil))
         sendMessage(.fileAccept(tid: offer.tid, offset: already), nil)
         if offer.size == 0 { receiveDoneIfComplete(offer.tid) }
     }
@@ -277,8 +283,16 @@ public final class FileTransferService: @unchecked Sendable {
             update(tid) { $0.state = .failed("The file was damaged in transit and was not saved.") }
             return
         }
-        var folder = destination()
-        for component in transfer.components.dropLast() { folder.appendPathComponent(component, isDirectory: true) }
+        // Re-check containment and re-create folders: the download folder may have changed mid-transfer.
+        guard let target = SafeFileName.contained(transfer.components, in: destination()),
+              (try? FileManager.default.createDirectory(at: target.deletingLastPathComponent(),
+                                                        withIntermediateDirectories: true)) != nil else {
+            try? FileManager.default.removeItem(at: transfer.partURL)
+            sendMessage(.fileResult(tid: tid, ok: false, reason: "invalid_name"), nil)
+            update(tid) { $0.state = .failed("Couldn’t save the file in the download folder.") }
+            return
+        }
+        let folder = target.deletingLastPathComponent()
         let finalName = SafeFileName.uniqueName(transfer.components.last!) {
             FileManager.default.fileExists(atPath: folder.appendingPathComponent($0).path)
         }
@@ -349,8 +363,8 @@ public final class FileTransferService: @unchecked Sendable {
         outgoing[tid] = transfer
         outgoingOrder.append(tid)
         retryURLs[tid] = url
-        items.append(Item(id: tid, name: name, direction: .outgoing, size: size, transferred: 0,
-                          bytesPerSecond: 0, state: .preparing, savedURL: url))
+        append(Item(id: tid, name: name, direction: .outgoing, size: size, transferred: 0,
+                    bytesPerSecond: 0, state: .preparing, savedURL: url))
         // Hash on a background queue, then come back to `queue`.
         DispatchQueue.global(qos: .utility).async {
             let digest = Self.sha256Hex(of: url)
@@ -385,7 +399,9 @@ public final class FileTransferService: @unchecked Sendable {
     }
 
     private func outgoingAccepted(tid: String, offset: Int64) {
-        guard let transfer = outgoing[tid], offset <= transfer.size else { return }
+        // Only the first accept for an offered transfer counts (a repeat would leak the open file).
+        guard let transfer = outgoing[tid], offset <= transfer.size,
+              items.first(where: { $0.id == tid })?.state == .offered else { return }
         guard let handle = try? FileHandle(forReadingFrom: transfer.url) else {
             outgoing[tid] = nil
             sendMessage(.fileCancel(tid: tid, reason: "unreadable"), nil)
@@ -486,6 +502,17 @@ public final class FileTransferService: @unchecked Sendable {
     }
 
     // MARK: - Helpers
+
+    public static let maxItems = 200
+
+    /// Adds to the list, dropping the oldest finished items beyond `maxItems`.
+    private func append(_ item: Item) {
+        items.append(item)
+        while items.count > Self.maxItems, let index = items.firstIndex(where: \.isFinished) {
+            retryURLs[items[index].id] = nil
+            items.remove(at: index)
+        }
+    }
 
     private func update(_ id: String, _ change: (inout Item) -> Void) {
         guard let index = items.firstIndex(where: { $0.id == id }) else { return }

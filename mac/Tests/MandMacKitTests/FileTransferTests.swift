@@ -116,6 +116,36 @@ final class FileTransferTests {
             .deletingLastPathComponent().appendingPathComponent("escaped.txt").path))
     }
 
+    @Test("A traversal hidden with a zero-width joiner after '/' is rejected (review finding)")
+    func zeroWidthTraversalRejected() async throws {
+        let link = Loopback(senderFolder: outbox, receiverFolder: inbox)
+        let source = try makeFile("innocent.txt", bytes: 100)
+        let sneaky = "../\u{200D}../\u{200D}Escaped/evil.txt"
+        link.tamper = { message in
+            guard case .fileOffer(let offer) = message else { return message }
+            return .fileOffer(FileOffer(tid: offer.tid, name: sneaky, size: offer.size, sha256: offer.sha256))
+        }
+        link.sender.send(urls: [source])
+        let failed = await link.senderItems.wait { $0.first { $0.isFinished } }
+        #expect(failed?.state == .failed(FileTransferService.describeReject("invalid_name")))
+        #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("Escaped").path))
+        #expect(!FileManager.default.fileExists(atPath: inbox.appendingPathComponent("Escaped").path))
+    }
+
+    @Test("A symlink inside the download folder can't redirect a file outside it")
+    func symlinkEscapeRejected() async throws {
+        let outside = root.appendingPathComponent("outside")
+        try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: inbox, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: inbox.appendingPathComponent("Linked"), withDestinationURL: outside)
+        let link = Loopback(senderFolder: outbox, receiverFolder: inbox)
+        _ = try makeFile("Linked/payload.txt", bytes: 100)
+        link.sender.send(urls: [outbox.appendingPathComponent("Linked")])
+        let failed = await link.senderItems.wait { $0.first { $0.isFinished } }
+        #expect(failed?.state == .failed(FileTransferService.describeReject("invalid_name")))
+        #expect(try FileManager.default.contentsOfDirectory(atPath: outside.path).isEmpty)
+    }
+
     @Test("Corrupted data is detected by the checksum and not saved")
     func integrityFailure() async throws {
         let link = Loopback(senderFolder: outbox, receiverFolder: inbox)

@@ -64,6 +64,7 @@ public final class ScrcpyManager {
     }
 
     public func start(allowControl: Bool) {
+        if case .failed = state { refresh() } // allow retrying after e.g. "no phone found"
         guard case .ready(let path) = state else { return }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: path)
@@ -80,7 +81,9 @@ public final class ScrcpyManager {
         process.standardOutput = pipe
         process.standardError = pipe
         pipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
-            let text = String(decoding: handle.availableData, as: UTF8.self)
+            let data = handle.availableData
+            if data.isEmpty { handle.readabilityHandler = nil; return } // end of output
+            let text = String(decoding: data, as: UTF8.self)
             let lines = text.split(whereSeparator: \.isNewline).map(String.init)
             guard !lines.isEmpty else { return }
             Task { @MainActor in

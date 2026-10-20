@@ -676,6 +676,39 @@
     {
       "input": "d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d/d",
       "expect": null
+    },
+    {
+      "input": "../‍../‍../‍Library/LaunchAgents/x.plist",
+      "expect": null
+    },
+    {
+      "input": "a/‍../b",
+      "expect": null
+    },
+    {
+      "input": "a/́b",
+      "expect": [
+        "a",
+        "́b"
+      ]
+    },
+    {
+      "input": ".́x",
+      "expect": [
+        "_́x"
+      ]
+    },
+    {
+      "input": " ́a",
+      "expect": [
+        "́a"
+      ]
+    },
+    {
+      "input": "x\u0000y",
+      "expect": [
+        "xy"
+      ]
     }
   ],
   "uniqueNames": [

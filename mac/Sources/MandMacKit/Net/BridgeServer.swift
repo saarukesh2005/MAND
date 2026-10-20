@@ -284,7 +284,8 @@ public final class BridgeServer: @unchecked Sendable {
             session.framed.close(reason: reason == "unpaired" ? "phone unpaired" : "phone closed the app")
 
         case (.ready, let feature) where feature.feature != nil:
-            emit(.featureMessage(feature))
+            // Only features the phone announced in its hello are accepted.
+            if let name = feature.feature, session.features.contains(name) { emit(.featureMessage(feature)) }
 
         case (_, .error(let code, _)):
             emit(.log("Phone reported an error: \(code)"))
