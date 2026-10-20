@@ -72,6 +72,35 @@ Each entry records what was decided, why, and what would make us revisit it.
 ## D13. Mac `@Observable` UI state instead of `@State` in views
 See D7. Screen-local state (selected section, message draft, the device being forgotten) lives in `UIState`.
 
+## D14. compileSdk 37, targetSdk 36 — 2026-10-20
+**Why:** current AndroidX Compose libraries require compiling against API 37. Compiling against newer APIs doesn't change runtime behaviour; the target stays 36 (see D9).
+
+## D15. Android build output outside the project folder
+**Why:** Gradle's test runner couldn't load test classes from a path containing an apostrophe (`M'AND`). When the path contains one, build output goes to `~/.mand-build/`. Renaming the project folder would also fix this; we chose not to touch your folder.
+
+## D16. Android toolchain without Android Studio
+**Why:** you allowed me to do the setup. The JDK, SDK command-line tools and Gradle were downloaded from official sources, checksum-verified, and installed into your home folder only. It's about 2 GB instead of 10+ GB. Android Studio can be added later and reuses the SDK.
+
+## D17. Feature negotiation through `hello.features`
+**Why:** new features are added without bumping the protocol version. Each side only uses features the other announced, and older apps ignore unknown messages.
+
+## D18. File transfer over the main connection, one transfer at a time
+**Why:** it reuses the already-pinned TLS session, so there's no second port or certificate exchange.
+- An 8-chunk window keeps the link responsive for pings.
+- Partial files are keyed by SHA-256 and size, so an interrupted transfer resumes even after reconnecting.
+
+**Revisit if:** speed on large files disappoints in real-phone tests.
+
+## D19. Partial downloads in Application Support, not Downloads
+**Why:** touching a privacy-protected folder at launch made macOS show a prompt that froze startup. Partial files now live in `~/Library/Application Support/M’AND/Partial`, and only finished files move to the chosen folder.
+
+## D20. scrcpy is found, not bundled
+**Why:** bundling it means redistributing scrcpy and its adb, with licence and update duties. You install it once; M’AND finds it in Homebrew or Applications, or wherever you choose. Mirroring is view-only unless you opt into control.
+
+## D21. Swift↔Java interop test
+**Why:** the riskiest unknown was whether Apple's TLS and Java's TLS agree on mutual P-256 certificate authentication. A test-only Swift server and a Kotlin JSSE client prove it on the Mac before a phone is involved.
+
 ## Open decisions
+- **Real-phone test:** everything in TESTING.md's checklist.
 - **Distribution:** personal sideloading for now. Google's developer verification for sideloaded apps rolls out globally in 2027; recheck the free "limited distribution" option before then.
 - **Android 17 target:** design the `ACCESS_LOCAL_NETWORK` onboarding (Milestone 6).

@@ -85,3 +85,17 @@ The Mac app builds with Apple's free Command Line Tools:
 - **Tests:** `scripts/test-mac.sh` works around the Command Line Tools' testing-plugin loader issue.
 
 See [DECISIONS.md](DECISIONS.md).
+
+## Features (Milestones 2–5)
+
+Optional features are negotiated with `hello.features` and carried as extra message types on the same pinned TLS connection (protocol §3a).
+
+| Feature | Mac | Android |
+|---|---|---|
+| Files (`file.v1`) | `FileTransferService`: own serial queue, 8-chunk window, SHA-256, resumable partials in Application Support, `SafeFileName` + unique names. `FilesView` handles drag-and-drop | `FileTransferManager`: confined to a single-thread dispatcher; copies shared/picked files into app storage first, then sends; saves into `Downloads/M’AND` via MediaStore. `ShareActivity` is the Share-sheet target |
+| Clipboard (`clipboard.v1`) | `ClipboardService`: skips concealed/transient pasteboard types; optional auto-send by polling `changeCount`; doesn't echo phone text back | `ClipboardBridge`: send only while focused (button, `ClipboardSendActivity` via the Quick Settings tile, or Share); skips sensitive clips |
+| Device (`device.v1`) | Battery shown on Home and in the menu bar | `BatteryReporter`: `ACTION_BATTERY_CHANGED`, sent on connect and on change |
+| Notifications (`notifications.v1`) | In-app list plus optional `MacNotifier` (UNUserNotificationCenter); dismissing sends `notification.dismiss` | `NotificationMirrorService` (listener) with a per-app allow-list in `FeatureSettings`; skips ongoing and summary notifications |
+| Mirroring | `ScrcpyManager` finds and launches a user-installed scrcpy with `--no-control` by default, and explains failures | needs USB debugging only |
+
+On Android, feature modules implement `FeatureHandler` and register with `BridgeClient` in `MandApp`. On the Mac, `BridgeServer` emits `.featureMessage`; file messages go straight to the transfer queue, and the rest go to `AppModel` on the main thread.

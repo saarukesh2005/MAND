@@ -1,41 +1,62 @@
 # Development setup
 
-## Mac (works today)
+## What's installed on this Mac (2026-10-20)
+| Tool | Where | How |
+|---|---|---|
+| Swift 6.4 + Swift Testing | Apple Command Line Tools | already present |
+| JDK 21 (Eclipse Temurin 21.0.12.1, arm64) | `~/.mand-tools/jdk-21.0.12.1+1` | official Adoptium download, SHA-256 verified |
+| Gradle 9.8.1 | `~/.mand-tools/gradle-9.8.1` (only used to create the wrapper) | services.gradle.org, SHA-256 verified |
+| Android SDK: command-line tools, platform-tools (adb), platforms 36 and 37, build-tools 36 | `~/Library/Android/sdk` | Google's official zip, SHA-1 verified; then `sdkmanager` |
 
-**Needs:** macOS 14+ and Apple Command Line Tools (`xcode-select --install`). Xcode is optional.
-**Verified on:** macOS 26.7.1, Apple M4, Swift 6.4 (Command Line Tools).
+Nothing was installed system-wide and no Homebrew was needed. Android Studio is **optional**: if you install it later, it finds the same SDK. To remove the tools, delete `~/.mand-tools`, `~/.mand-build` and `~/Library/Android/sdk`.
 
+## Mac app
 ```bash
-scripts/create-dev-signing-cert.sh   # once — creates the "M’AND Local Dev" signing identity
-scripts/test-mac.sh                  # run all Mac tests
-scripts/build-mac-app.sh             # build dist/M’AND.app (release); add "debug" for a debug build
+scripts/create-dev-signing-cert.sh   # once — the "M’AND Local Dev" signing identity
+scripts/test-mac.sh                  # all Mac tests
+scripts/build-mac-app.sh             # dist/M’AND.app (add "debug" for a debug build)
 open "dist/M’AND.app"
 ```
+- **First launch:** M’AND creates its identity in your login keychain. If macOS asks about **Local Network**, choose **Allow**.
+- **First file from the phone:** macOS asks once whether M’AND may use your **Downloads** folder (the default save location). Choose **Allow**, or pick another folder in Settings.
+- **Why `test-mac.sh` and not `swift test`:** with only the Command Line Tools, Apple's test-macro plugin can't find its own libraries. The script keeps a private copy in `~/.mand-tools/swift-plugins` and loads it explicitly (DECISIONS.md D7).
 
-- **The first build** downloads Apple's `swift-certificates`, `swift-asn1` and `swift-crypto` packages, pinned in `mac/Package.resolved`.
-- **On first launch** M’AND creates its identity in your login keychain ("M’AND Device Identity"). macOS may ask about **Local Network** access; choose **Allow** so phones can find the Mac. You can change this later in System Settings → Privacy & Security → Local Network.
-- **Quick compile check without packaging:** `cd mac && swift build`.
-
-## Android (needs Android Studio)
-
-1. Install **Android Studio** (free) from <https://developer.android.com/studio>. It includes the Java runtime, the Android SDK and `adb`. Choose the **Standard** setup and skip emulator images; we test on a real phone.
-2. In Android Studio choose **Open** and pick the `android/` folder. Let it finish "Gradle sync". It downloads Gradle 9.8.1, and the download is checked against the SHA-256 in `gradle/wrapper/gradle-wrapper.properties`.
-3. Generate the command-line Gradle wrapper (`./gradlew`) once. Android Studio doesn't need it, but terminal builds do. Ask Claude Code to do this step: it downloads the Gradle 9.8.1 distribution, checks it against the pinned SHA-256, and runs `gradle wrapper` from it. The project deliberately doesn't contain an unverified wrapper JAR (see DECISIONS.md D11).
-4. Build and test:
-   ```bash
-   ./gradlew :core:test           # shared protocol tests
-   ./gradlew :app:assembleDebug   # builds app/build/outputs/apk/debug/app-debug.apk
-   ```
-
-> **If the Android build fails with odd "unterminated quote" errors,** the apostrophe in the folder name `M'AND` is the likely cause (some Android tools mishandle it). Build from a copy at a path without an apostrophe, e.g. `~/Projects/mand`. Swift builds are not affected.
+## Android app
+```bash
+export JAVA_HOME=~/.mand-tools/jdk-21.0.12.1+1/Contents/Home   # scripts do this for you
+cd android
+./gradlew :core:test           # protocol core + shared vectors
+./gradlew :app:assembleDebug   # the APK
+./gradlew :app:lintDebug       # Android lint
+```
+- **Build output** goes to `~/.mand-build/`, not `android/*/build`. Gradle's test runner can't load classes from a folder whose path contains an apostrophe, and this project lives in `M'AND` (DECISIONS.md D15). The APK is at `~/.mand-build/_app/outputs/apk/debug/app-debug.apk`.
+- **`android/local.properties`** points to the SDK. It's machine-specific and ignored by git.
 
 ### Put it on your phone
-1. On the phone, go to Settings → About phone and tap **Build number** 7 times to unlock Developer options.
+1. On the phone, go to Settings → About phone and tap **Build number** 7 times.
 2. Turn on Settings → System → Developer options → **USB debugging**.
-3. Connect the phone by USB and tap **Allow** on the phone.
-4. Install the app: `adb install -r app/build/outputs/apk/debug/app-debug.apk`.
+3. Plug the phone into the Mac with a USB cable. Unlock it and tap **Allow** for USB debugging.
+4. Run `scripts/install-android.sh`. It builds, installs and opens M’AND, and prints the phone model and Android version.
+
+### First run on the phone
+1. Open M’AND on the Mac → **Pair a Phone**. On the phone tap **Pair with Mac**, scan the code, then click **Allow** on the Mac.
+2. Allow **notifications** (for the status notification) and **unrestricted battery** when M’AND asks.
+3. **Optional features:**
+   - **Clipboard sharing:** turn it on in both apps.
+   - **Notifications on the Mac:**
+     1. Turn the switch on.
+     2. Tap **Open Notification access** and allow M’AND. If Android says it's a restricted setting, go to App info → ⋮ → **Allow restricted settings** first.
+     3. Tap **Choose apps** and pick the apps to share.
+   - **Quick Settings tile:** pull down Quick Settings → edit → add **Clipboard to Mac**.
+
+## Tests across both languages
+```bash
+scripts/interop-test.sh
+```
+This starts a test-only Swift server (`MandInteropServer`, never shipped) with a throwaway keychain. It then runs a Kotlin client that uses Java's TLS stack, the same one Android uses, against it with throwaway certificates.
 
 ## Project rules
-- **Protocol:** change `protocol/PROTOCOL.md` and `protocol/vectors/` first, then both implementations. Both test suites must pass.
+- **Protocol:** change `protocol/PROTOCOL.md` and `protocol/vectors/` first, then both implementations. All test suites must pass.
 - **Secrets:** never commit keys, certificates or keystores (`.gitignore` blocks the common types).
-- **Mac UI state:** keep it in `AppModel`, built from real events. Don't put placeholder data in UI flows.
+- **UI:** show only real state. Don't put placeholder data in user-facing flows.
+- **Privacy prompts:** never touch privacy-protected folders (Downloads, Documents, Desktop) at launch. macOS would show an access prompt and block the app.

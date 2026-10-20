@@ -6,20 +6,30 @@ M’AND links your Android phone and your Mac over your own Wi-Fi. No cloud, no 
 
 | Part | What it is | Code name |
 |---|---|---|
-| Mac app | The main control centre (SwiftUI, menu bar + window) | `MandMac` |
+| Mac app | The main control centre (SwiftUI window, menu bar and Settings) | `MandMac` |
 | Android app | The secure companion (Kotlin, Jetpack Compose) | `MandAndroid` |
 | Shared protocol | How the two talk, plus test cases both apps must pass | `protocol/` |
 
-## What works today (Milestone 1: connection)
+## Features
 
-- **Pairing:** scan a QR code on the Mac, then click **Allow**. Nothing is trusted until you approve it.
-- **Encryption:** TLS 1.3, where each device proves its identity and accepts only the exact device it paired with.
-- **Status:** the Mac shows whether the phone is connected, plus its name and when it was last seen.
-- **Test messages:** send a short text either way to check the link.
-- **Reconnecting:** disconnects are detected within 45 seconds, and the phone reconnects automatically after Wi-Fi drops or restarts.
-- **Forget device:** either side can unpair at any time.
+| Feature | Mac | Android |
+|---|---|---|
+| **Secure pairing:** scan a QR code, then click Allow | ✅ | ✅ |
+| **Connection status**, last seen, auto-reconnect, forget device | ✅ | ✅ |
+| **Files both ways:** drag and drop, Share sheet, folders, progress and speed, resume after a dropped connection, SHA-256 check, never overwrites | ✅ | ✅ |
+| **Clipboard text:** off by default; passwords never sent; Quick Settings tile on the phone | ✅ | ✅ |
+| **Phone notifications on the Mac:** you choose the apps; dismiss on the Mac and it's dismissed on the phone | ✅ | ✅ |
+| **Battery level and charging** on the Mac | ✅ | ✅ |
+| **Screen mirroring** with the free scrcpy tool (USB); view-only unless you allow control | ✅ | needs USB debugging |
+| Open at login / reconnect after the phone restarts | ✅ | ✅ |
 
-See [docs/ROADMAP.md](docs/ROADMAP.md) for what's next: files, clipboard, notifications, battery and screen mirroring. See [docs/TESTING.md](docs/TESTING.md) for exactly what has and hasn't been verified.
+**Honest limits:**
+- Calls and SMS aren't mirrored beyond their notifications.
+- Android only lets the app on screen read the clipboard, so sending from the phone always takes a tap.
+
+Details are in [docs/ROADMAP.md](docs/ROADMAP.md).
+
+**Verification status:** everything has been built and automatically tested on this Mac, including a real Mac↔Java TLS interop test. **Nothing has been tested on a real Android phone yet.** See [docs/TESTING.md](docs/TESTING.md).
 
 ## Run it
 
@@ -30,20 +40,25 @@ scripts/build-mac-app.sh             # builds dist/M’AND.app
 open "dist/M’AND.app"
 ```
 
-**Android app.** You need Android Studio first; see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
+**Android app.** Plug in the phone with USB debugging on (see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)), then run:
+```bash
+scripts/install-android.sh
+```
 
 **Tests**
 ```bash
-scripts/test-mac.sh                  # Mac: protocol + real TLS tests
-cd android && ./gradlew :core:test   # Android protocol tests (after Android Studio is installed)
+scripts/test-mac.sh                   # Mac: protocol, real TLS, file transfer (41 tests)
+(cd android && ./gradlew :core:test)  # Kotlin protocol core + shared vectors
+scripts/interop-test.sh               # Swift server ↔ Kotlin/Java TLS client
 ```
 
 ## Documentation
 
 - [Architecture](docs/ARCHITECTURE.md): how the apps are built and how they talk
-- [Security](docs/SECURITY.md): what protects you, and the known gaps
+- [Security](docs/SECURITY.md): what protects you, the permissions used, and the known gaps
 - [Development setup](docs/DEVELOPMENT.md)
 - [Roadmap](docs/ROADMAP.md)
 - [Testing and verification status](docs/TESTING.md)
 - [Decisions](docs/DECISIONS.md): why things are built this way
+- [References](docs/REFERENCES.md): open-source projects we learn from, and licence rules
 - [Protocol specification](protocol/PROTOCOL.md)

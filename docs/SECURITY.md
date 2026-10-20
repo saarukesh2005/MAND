@@ -19,6 +19,10 @@ M’AND treats security as a feature. This page explains what protects you, what
 | Flood limits | At most 16 unfinished connections (4 per address); unfinished handshakes are dropped after 15 s; an unanswered approval after 2 min |
 | Logs | Activity log records events only (connected, paired, errors), **never message contents** |
 | Backups | Android pairing data is excluded from cloud backup and device transfer |
+| Files | Received names are cleaned by shared rules (no `..`, no absolute paths, no control or direction-override characters). Partial files are kept in app storage, checked with SHA-256 before saving, and never overwrite: a clash becomes `name (2).ext` |
+| Clipboard | Off by default on both sides. Only user-initiated on Android. Items marked concealed (Mac) or sensitive (Android) are never sent. No history |
+| Notifications | Off by default; only apps you pick. Android 15+ hides one-time codes from M’AND. Contents are shown, never logged |
+| Mirroring | scrcpy runs view-only (`--no-control`) unless you turn on control |
 
 ## Permissions and why
 **Mac**
@@ -33,11 +37,16 @@ M’AND treats security as a feature. This page explains what protects you, what
 | `POST_NOTIFICATIONS` | The required "M’AND connected" status notification (asked with an explanation) |
 | `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` | Opens the system dialog; you decide |
 | `CAMERA` (from the scanner library) | Only while scanning the pairing QR code |
+| `RECEIVE_BOOT_COMPLETED` | Reconnect after the phone restarts (only if a Mac is paired) |
+| Notification access (granted in Settings, not a pop-up) | Only if you turn on notification sharing |
+| Launcher-app visibility (`<queries>`) | Lists your apps so you can choose which notifications to share. Broad `QUERY_ALL_PACKAGES` is not used |
 
-Not requested: SMS, contacts, call log, storage, location, accessibility, notification access. Later milestones will explain each new permission before asking.
+Not requested: SMS, contacts, call log, storage (files go through the system picker, the Share sheet and MediaStore), location, accessibility.
+
+**Mac:** Downloads folder access (asked by macOS on the first received file). Notification Center (only if you turn it on in Settings).
 
 ## Known risks and remaining work
-1. **The Android side hasn't been compiled or tested yet.** Its security behaviour is unverified until it is.
+1. **The Android app compiles and is lint-clean, but hasn't run on a phone.** Its TLS behaviour is covered by the Swift↔Java interop test; everything else is unverified until the real-phone checklist.
 2. **Local Network denial:** if denied, discovery fails but connecting by IP works. The UI explains this, but hasn't been tested on a real denial.
 3. **Shoulder-surfing during pairing:** anyone who photographs the QR code within its 5-minute window could try to pair. They would still need you to click **Allow**, so only approve phones you recognise and check the security code.
 4. **Pre-pairing connections:** while a pairing window is open, the Mac accepts TLS from any client. That client can only send `hello` and `pair.request` (≤ 4 KiB frames) and is dropped after 15 s, so this is a small attack surface during those 5 minutes.
@@ -48,6 +57,7 @@ Not requested: SMS, contacts, call log, storage, location, accessibility, notifi
 9. **No independent security audit** has been done.
 
 ## Review history
+- 2026-10-20: AI review of the file, clipboard, notification and mirroring code. See the commit history for fixes.
 - 2026-10-19: an AI security review of the Mac and Android code found no critical issues. One high-severity bug (pairing was cancelled if Allow took more than about a second) and several medium-severity hardening items were fixed the same day, with regression tests.
 
 ## Reporting
