@@ -12,6 +12,7 @@ import dev.mand.android.identity.KeystoreIdentity
 import dev.mand.core.Base64Url
 import dev.mand.core.ConnectionTiming
 import dev.mand.core.Envelope
+import dev.mand.core.Feature
 import dev.mand.core.Hello
 import dev.mand.core.Message
 import dev.mand.core.PairingInvitation
@@ -55,6 +56,10 @@ class BridgeClient private constructor(private val context: Context) {
     val chat: StateFlow<List<ChatLine>> = _chat.asStateFlow()
 
     @Volatile private var session: MacSession? = null
+    /** Features the connected Mac announced in its hello. */
+    @Volatile var macFeatures: Set<String> = emptySet()
+        private set
+    private val handlers = java.util.concurrent.CopyOnWriteArrayList<FeatureHandler>()
     /** True while a QR pairing is running; the reconnect loop stays off so the two never race. */
     @Volatile private var isPairing = false
     private var linkJob: Job? = null
@@ -75,6 +80,26 @@ class BridgeClient private constructor(private val context: Context) {
     }
 
     // ---- Public API ----
+
+    /** Feature modules (files, clipboard, notifications, battery) register here once, at app start. */
+    fun register(handler: FeatureHandler) {
+        handlers += handler
+    }
+
+    /** True if a Mac is connected and supports [feature]. */
+    fun macSupports(feature: String): Boolean = _state.value is LinkState.Connected && feature in macFeatures
+
+    /** Sends a feature message to the connected Mac. Returns false if not connected or the write failed. */
+    suspend fun send(message: Message): Boolean {
+        val current = session ?: return false
+        if (_state.value !is LinkState.Connected) return false
+        return runCatching { current.send(message) }.isSuccess
+    }
+
+    /** Fire-and-forget variant for callbacks that can't suspend. */
+    fun sendAsync(message: Message) {
+        scope.launch { send(message) }
+    }
 
     /** Starts (or keeps) the reconnect loop. Called by the foreground service. */
     @Synchronized
@@ -263,6 +288,7 @@ class BridgeClient private constructor(private val context: Context) {
             if (connectedOk) attempt = 0
             _state.value = LinkState.Searching(mac.name, attempt, lastError)
             // Wait for the backoff delay, or retry at once when the network changes.
+            @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
             select<Unit> {
                 kick.onReceive { }
                 onTimeout(ConnectionTiming.backoffMs(attempt)) { }
@@ -327,6 +353,7 @@ class BridgeClient private constructor(private val context: Context) {
     private suspend fun runConnected(opened: MacSession, mac: PairedMac): String = coroutineScope {
         session = opened
         _state.value = LinkState.Connected(mac.name, opened.host, now())
+        handlers.forEach { handler -> runCatching { handler.onConnected(macFeatures) } }
         val heartbeat = launch {
             while (isActive) {
                 delay(ConnectionTiming.PING_INTERVAL_MS)
@@ -353,6 +380,10 @@ class BridgeClient private constructor(private val context: Context) {
                         break
                     }
                     is Message.Error -> Log.i(TAG, "Mac reported error ${message.code}")
+                    is Message.FileOffer, is Message.FileAccept, is Message.FileReject, is Message.FileChunk,
+                    is Message.FileAck, is Message.FileDone, is Message.FileResult, is Message.FileCancel,
+                    is Message.ClipboardText, is Message.NotificationDismiss ->
+                        handlers.forEach { handler -> runCatching { handler.onMessage(message) } }
                     else -> Unit // pong, unknown future messages: ignore
                 }
             }
@@ -363,6 +394,8 @@ class BridgeClient private constructor(private val context: Context) {
             }
         } finally {
             heartbeat.cancel()
+            macFeatures = emptySet()
+            handlers.forEach { handler -> runCatching { handler.onDisconnected() } }
             opened.close()
             session = null
         }
@@ -373,7 +406,9 @@ class BridgeClient private constructor(private val context: Context) {
 
     /** Sends our hello, waits for the Mac's, and checks we share a protocol version. */
     private suspend fun handshakeHello(session: MacSession): Hello {
-        session.send(Message.HelloMessage(Hello(phoneName, Hello.Platform.ANDROID, ProtocolVersion.SUPPORTED, APP_VERSION)))
+        session.send(
+            Message.HelloMessage(Hello(phoneName, Hello.Platform.ANDROID, ProtocolVersion.SUPPORTED, APP_VERSION, Feature.ALL)),
+        )
         val first = withTimeout(HANDSHAKE_TIMEOUT_MS) { nextMeaningful(session) }
         val hello = (first.message as? Message.HelloMessage)?.hello
             ?: (first.message as? Message.Error)?.let { throw MacRejectedException(ProtocolError.fromWire(it.code), it.code) }
@@ -381,6 +416,7 @@ class BridgeClient private constructor(private val context: Context) {
         if (hello.platform != Hello.Platform.MAC) throw MacRejectedException(ProtocolError.MALFORMED, "not a Mac")
         ProtocolVersion.negotiate(ProtocolVersion.SUPPORTED, hello.versions)
             ?: throw MacRejectedException(ProtocolError.VERSION_UNSUPPORTED, "version_unsupported")
+        macFeatures = hello.features.toSet()
         return hello
     }
 
@@ -437,7 +473,7 @@ class BridgeClient private constructor(private val context: Context) {
 
     companion object {
         private const val TAG = "MandBridge"
-        const val APP_VERSION = "0.1.0"
+        const val APP_VERSION = "0.2.0"
         private const val HANDSHAKE_TIMEOUT_MS = 10_000L
         private const val APPROVAL_TIMEOUT_MS = 5L * 60 * 1000
         private const val MAX_CHAT_LINES = 100

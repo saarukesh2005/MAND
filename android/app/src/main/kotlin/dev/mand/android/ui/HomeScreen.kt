@@ -54,7 +54,13 @@ import dev.mand.android.net.ChatLine
 import dev.mand.android.net.LinkState
 
 @Composable
-fun HomeScreen(client: BridgeClient, phoneSecurityCode: String?, permissions: PermissionStatus, actions: HomeActions) {
+fun HomeScreen(
+    client: BridgeClient,
+    phoneSecurityCode: String?,
+    permissions: PermissionStatus,
+    actions: HomeActions,
+    features: @Composable (connected: Boolean) -> Unit = {},
+) {
     val state by client.state.collectAsStateWithLifecycle()
     val chat by client.chat.collectAsStateWithLifecycle()
     var confirmForget by rememberSaveable { mutableStateOf(false) }
@@ -89,6 +95,7 @@ fun HomeScreen(client: BridgeClient, phoneSecurityCode: String?, permissions: Pe
                         "Allow", actions.requestBatteryExemption)
                 }
             }
+            if (state !is LinkState.NotPaired && state !is LinkState.Pairing) features(state is LinkState.Connected)
             ComingSoonCard()
             if (state is LinkState.Connected || state is LinkState.Searching || state is LinkState.Paused) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -259,10 +266,7 @@ private fun SetupCard(icon: ImageVector, title: String, body: String, button: St
 
 @Composable
 private fun ComingSoonCard() {
-    Card(title = "Coming next", subtitle = "Not built yet — these will appear in later updates.") {
-        listOf("Send files", "Clipboard sharing", "Phone notifications on the Mac", "Battery level on the Mac", "Screen mirroring")
-            .forEach { Text("·  $it", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-    }
+    Card(title = "Screen mirroring", subtitle = "Open M’AND on your Mac → Screen Mirroring. It uses a USB cable and USB debugging.") {}
 }
 
 @Composable

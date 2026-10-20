@@ -20,6 +20,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
+import dev.mand.android.MandApp
 import dev.mand.android.data.PairedMacStore
 import dev.mand.android.identity.KeystoreIdentity
 import dev.mand.android.net.BridgeClient
@@ -30,8 +31,14 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
-    private val client by lazy { BridgeClient.get(this) }
+    private val app get() = application as MandApp
+    private val client get() = app.client
     private var permissions by mutableStateOf(PermissionStatus(notifications = false, batteryUnrestricted = false))
+    private var notificationAccess by mutableStateOf(false)
+
+    private val filePicker = registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        if (uris.isNotEmpty()) lifecycleScope.launch { app.files.importAndSend(uris) }
+    }
     private var phoneCode by mutableStateOf<String?>(null)
 
     private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
@@ -65,6 +72,17 @@ class MainActivity : ComponentActivity() {
                         resume = { BridgeService.start(this) },
                         pause = { BridgeService.stop(this) },
                     ),
+                    features = { connected ->
+                        FeatureCards(
+                            app = app,
+                            connected = connected,
+                            notificationAccess = notificationAccess,
+                            actions = FeatureActions(
+                                pickFiles = { filePicker.launch(arrayOf("*/*")) },
+                                openNotificationAccess = ::openNotificationAccess,
+                            ),
+                        )
+                    },
                 )
             }
         }
@@ -106,7 +124,18 @@ class MainActivity : ComponentActivity() {
         )
     }
 
+    private fun openNotificationAccess() {
+        val detail = Intent(Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS).putExtra(
+            Settings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME,
+            android.content.ComponentName(this, dev.mand.android.notify.NotificationMirrorService::class.java).flattenToString(),
+        )
+        runCatching { startActivity(detail) }.onFailure {
+            startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+        }
+    }
+
     private fun refreshPermissions() {
+        notificationAccess = app.notifications.hasAccess()
         permissions = PermissionStatus(
             notifications = ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) ==
                 PackageManager.PERMISSION_GRANTED,
