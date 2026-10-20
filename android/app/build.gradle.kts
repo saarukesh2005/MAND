@@ -20,7 +20,12 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // Personal distribution: signed with this Mac's local Android key (the same one the earlier
+            // builds used), so it installs over the existing app and keeps the pairing. A dedicated
+            // store key is needed before publishing — see docs/RELEASE_CHECKLIST.md.
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 

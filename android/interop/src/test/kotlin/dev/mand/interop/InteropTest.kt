@@ -126,6 +126,8 @@ class InteropTest {
             assertEquals(Message.ClipboardText("echo:clip ✂️"), c.next())
             c.send(Message.DeviceStatus(77, true))
             assertEquals(Message.Text("battery:77:true"), c.next())
+            c.send(Message.CallStateUpdate(Message.CallState.RINGING, "Amma"))
+            assertEquals(Message.CallActionRequest(Message.CallAction.DECLINE), c.next())
         }
     }
 

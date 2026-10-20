@@ -13,9 +13,9 @@ if [ -z "${JAVA_HOME:-}" ]; then
 fi
 [ -x "$ADB" ] || { echo "adb not found at $ADB. See docs/DEVELOPMENT.md."; exit 1; }
 
-echo "→ Building the Android app…"
-(cd "$ROOT/android" && ./gradlew :app:assembleDebug --console=plain -q)
-APK="$(ls -t "$HOME"/.mand-build/_app/outputs/apk/debug/app-debug.apk "$ROOT"/android/app/build/outputs/apk/debug/app-debug.apk 2>/dev/null | head -1)"
+echo "→ Building the Android app (release)…"
+(cd "$ROOT/android" && ./gradlew :app:assembleRelease --console=plain -q)
+APK="$(ls -t "$HOME"/.mand-build/_app/outputs/apk/release/app-release.apk "$ROOT"/android/app/build/outputs/apk/release/app-release.apk 2>/dev/null | head -1)"
 [ -n "$APK" ] || { echo "Build finished but the APK wasn't found."; exit 1; }
 
 echo "→ Looking for your phone…"
