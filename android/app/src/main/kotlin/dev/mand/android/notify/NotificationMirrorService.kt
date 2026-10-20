@@ -29,6 +29,7 @@ class NotificationMirrorService : NotificationListenerService() {
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         val message = toMessage(sbn) ?: return
+        rememberSent(sbn.key)
         app.client.sendAsync(message)
     }
 
@@ -73,8 +74,20 @@ class NotificationMirrorService : NotificationListenerService() {
         @Volatile var instance: NotificationMirrorService? = null
             private set
 
-        /** Dismisses a notification on the phone when the user dismisses it on the Mac. */
+        private const val MAX_REMEMBERED = 500
+        private val sentKeys = java.util.Collections.synchronizedSet(LinkedHashSet<String>())
+
+        private fun rememberSent(key: String) {
+            synchronized(sentKeys) {
+                sentKeys.remove(key)
+                sentKeys.add(key)
+                while (sentKeys.size > MAX_REMEMBERED) sentKeys.remove(sentKeys.first())
+            }
+        }
+
+        /** Dismisses a notification on the phone when the user dismisses it on the Mac — only ones M’AND shared. */
         fun dismiss(key: String) {
+            if (!sentKeys.remove(key)) return
             runCatching { instance?.cancelNotification(key) }
         }
     }

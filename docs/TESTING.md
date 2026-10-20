@@ -9,7 +9,7 @@ Nothing below says "verified" unless it was actually run. Last updated: 2026-10-
 | Protocol core, Swift (`MandCore`) | ✅ | ✅ | ✅ 21 tests, 7 suites | n/a | Includes all shared vectors |
 | Protocol core, Kotlin (`:core`) | ✅ | ✅ | ✅ 16 test methods | n/a | Same shared vectors |
 | Mac TLS server + pairing | ✅ | ✅ | ✅ 13 tests | Mac only | Real TLS 1.3 on localhost |
-| Mac file transfer | ✅ | ✅ | ✅ 7 tests | Mac only | Two real transfer engines wired back to back |
+| Mac file transfer | ✅ | ✅ | ✅ 9 tests | Mac only | Two real transfer engines wired back to back |
 | Swift ↔ Java/Kotlin TLS interop | ✅ | ✅ | ✅ 4 tests | Mac only | Same TLS stack family as Android, but not the Android app itself |
 | Mac app (UI, clipboard, notifications, mirroring launcher, settings) | ✅ | ✅ | ⬜ no UI tests | ✅ launches, listens on 47821, TLS 1.3 | |
 | Android app | ✅ | ✅ APK builds | lint: 0 errors | ⬜ | **Not yet run on any phone or emulator** |
@@ -17,7 +17,7 @@ Nothing below says "verified" unless it was actually run. Last updated: 2026-10-
 
 ## How to run
 ```bash
-scripts/test-mac.sh                       # 41 Mac tests
+scripts/test-mac.sh                       # 43 Mac tests
 (cd android && ./gradlew :core:test)      # Kotlin core
 scripts/interop-test.sh                   # Swift server ↔ Kotlin client
 (cd android && ./gradlew :app:lintDebug)  # Android lint
@@ -34,7 +34,7 @@ scripts/interop-test.sh                   # Swift server ↔ Kotlin client
 | Version negotiation | 4 | Match, overlap, no overlap |
 | Pairing proof | 2 | A known-good HMAC; the same proof with fingerprints swapped is rejected |
 | QR invitations | 11 | A valid code; wrong scheme, short fingerprint, bad secret/port/hosts/version; DNS names and bad IPv4 rejected |
-| Safe file names | 19 | Traversal (`..`), absolute and Windows paths, hidden names, control and direction-override characters, Unicode, long names, depth limit |
+| Safe file names | 25 | Traversal (`..`, including `..` hidden behind a zero-width joiner), combining marks after `/`, absolute and Windows paths, hidden names, control and direction-override characters, Unicode, long names, depth limit |
 | Unique names | 5 | `a (2).txt`, `a (3).txt`, names without extensions, `.tar.gz` |
 
 **Mac integration tests** (real Network.framework TLS 1.3 on 127.0.0.1, throwaway keychain):
@@ -57,6 +57,8 @@ scripts/interop-test.sh                   # Swift server ↔ Kotlin client
 - a 1 MB file arrives intact
 - folders with nested files and empty files
 - a traversal name is rejected, and nothing is written outside the folder
+- a zero-width-joiner traversal (the review's attack) is rejected
+- a symlink inside the download folder can't redirect a file outside it
 - corrupted data is caught by SHA-256 and not saved
 - a 3 MB transfer cut at about 1 MB resumes from the partial file
 - an identical file isn't duplicated

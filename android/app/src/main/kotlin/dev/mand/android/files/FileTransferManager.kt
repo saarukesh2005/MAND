@@ -126,6 +126,14 @@ class FileTransferManager(private val context: Context, private val client: Brid
         }
     }
 
+    init {
+        // Drop partial downloads nobody resumed within a week.
+        scope.launch {
+            val cutoff = System.currentTimeMillis() - PARTIAL_MAX_AGE_MS
+            partialDir.listFiles()?.filter { it.lastModified() < cutoff }?.forEach { it.delete() }
+        }
+    }
+
     // ---- Public API ----
 
     /**
@@ -204,8 +212,11 @@ class FileTransferManager(private val context: Context, private val client: Brid
         }
 
         val partFile = File(partialDir, "${offer.sha256}-${offer.size}.part")
+        // Two transfers of the same content at once would share (and corrupt) one partial file.
+        if (incoming.values.any { it.partFile == partFile }) return reject(offer.tid, "busy")
         if (partFile.length() > offer.size) partFile.delete()
-        if (context.filesDir.usableSpace - FREE_SPACE_MARGIN < (offer.size - partFile.length()) * 2) {
+        val reserved = incoming.values.sumOf { it.offer.size - it.received }
+        if (context.filesDir.usableSpace - FREE_SPACE_MARGIN < (offer.size - partFile.length() + reserved) * 2) {
             return reject(offer.tid, "no_space") // partial + copy into Downloads
         }
         val digest = MessageDigest.getInstance("SHA-256")
@@ -354,7 +365,14 @@ class FileTransferManager(private val context: Context, private val client: Brid
         val t = Outgoing(id, file, name)
         outgoing[id] = t
         add(TransferItem(id, name, false, t.size, state = TransferState.Preparing))
-        t.sha256 = withContext(Dispatchers.IO) { file.inputStream().use { sha256Hex(it) } }
+        val hash = withContext(Dispatchers.IO) { runCatching { file.inputStream().use { sha256Hex(it) } }.getOrNull() }
+        if (outgoing[id] !== t) return // cancelled while preparing
+        if (hash == null) {
+            outgoing.remove(id)
+            update(id) { it.copy(state = TransferState.Failed("Couldn’t read this file.")) }
+            return
+        }
+        t.sha256 = hash
         if (t.size > Message.MAX_FILE_SIZE) {
             outgoing.remove(id)
             update(id) { it.copy(state = TransferState.Failed("This file is too large.")) }
@@ -379,6 +397,8 @@ class FileTransferManager(private val context: Context, private val client: Brid
     private suspend fun accepted(tid: String, offset: Long) {
         val t = outgoing[tid] ?: return
         if (offset < 0 || offset > t.size) return
+        // Only the first accept for an offered transfer counts (a repeat would leak the open file).
+        if (_items.value.firstOrNull { it.id == tid }?.state != TransferState.Offered) return
         val input = runCatching { FileInputStream(t.source) }.getOrNull() ?: run {
             outgoing.remove(tid)
             client.send(Message.FileCancel(tid, "unreadable"))
@@ -476,6 +496,7 @@ class FileTransferManager(private val context: Context, private val client: Brid
         private const val MAX_CONCURRENT_INCOMING = 4
         private const val MAX_ITEMS = 200
         private const val FREE_SPACE_MARGIN = 200L * 1024 * 1024
+        private const val PARTIAL_MAX_AGE_MS = 7L * 24 * 60 * 60 * 1000
         const val DOWNLOAD_FOLDER = "M’AND"
 
         internal fun relativePath(components: List<String>): String =

@@ -6,18 +6,33 @@ import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 import dev.mand.android.MandApp
 import dev.mand.android.net.LinkState
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 /** Quick Settings tile: “Send clipboard to Mac”. */
 class ClipboardTileService : TileService() {
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
     override fun onStartListening() {
         super.onStartListening()
         val app = application as MandApp
-        val ready = app.settings.prefs.value.clipboardEnabled && app.client.state.value is LinkState.Connected
-        qsTile?.apply {
-            state = if (ready) Tile.STATE_INACTIVE else Tile.STATE_UNAVAILABLE
-            subtitle = if (ready) "To Mac" else "Not connected"
-            updateTile()
+        scope.launch {
+            app.settings.awaitLoaded() // a tile bind can cold-start the app; don't judge by defaults
+            val ready = app.settings.prefs.value.clipboardEnabled && app.client.state.value is LinkState.Connected
+            qsTile?.apply {
+                state = if (ready) Tile.STATE_INACTIVE else Tile.STATE_UNAVAILABLE
+                subtitle = if (ready) "To Mac" else "Not connected"
+                updateTile()
+            }
         }
+    }
+
+    override fun onDestroy() {
+        scope.cancel()
+        super.onDestroy()
     }
 
     override fun onClick() {

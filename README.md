@@ -47,7 +47,7 @@ scripts/install-android.sh
 
 **Tests**
 ```bash
-scripts/test-mac.sh                   # Mac: protocol, real TLS, file transfer (41 tests)
+scripts/test-mac.sh                   # Mac: protocol, real TLS, file transfer (43 tests)
 (cd android && ./gradlew :core:test)  # Kotlin protocol core + shared vectors
 scripts/interop-test.sh               # Swift server ↔ Kotlin/Java TLS client
 ```

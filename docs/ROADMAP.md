@@ -15,7 +15,7 @@ QR pairing with Mac approval, mutual TLS 1.3 with pinning, status and last-seen,
 Both directions; multiple files and folders (Mac); Android Share sheet and file picker.
 - **Transfer:** progress and speed, cancel, retry (Mac), resume after interruption, SHA-256 verified.
 - **Safety:** traversal-safe names, no duplicates, no overwrites (`name (2).ext`), and a choosable download folder on the Mac (default `~/Downloads/M’AND`). Android saves to `Downloads/M’AND`.
-- **Verified:** 7 Mac loopback tests (intact transfer, folders and empty files, traversal rejected, corruption detected, resume, no duplicates or overwrites, out-of-order rejected) and 19 shared file-name vectors in both languages.
+- **Verified:** 9 Mac loopback tests (intact transfer, folders and empty files, traversal rejected incl. zero-width and symlink attacks, corruption detected, resume, no duplicates or overwrites, out-of-order rejected) and 25 shared file-name vectors in both languages.
 
 ## Milestone 3: clipboard ✅ Mac / 🟡 Android
 Off by default on both sides. Text only, with no history kept.

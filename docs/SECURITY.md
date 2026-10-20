@@ -50,14 +50,19 @@ Not requested: SMS, contacts, call log, storage (files go through the system pic
 2. **Local Network denial:** if denied, discovery fails but connecting by IP works. The UI explains this, but hasn't been tested on a real denial.
 3. **Shoulder-surfing during pairing:** anyone who photographs the QR code within its 5-minute window could try to pair. They would still need you to click **Allow**, so only approve phones you recognise and check the security code.
 4. **Pre-pairing connections:** while a pairing window is open, the Mac accepts TLS from any client. That client can only send `hello` and `pair.request` (≤ 4 KiB frames) and is dropped after 15 s, so this is a small attack surface during those 5 minutes.
-5. **Pairing nuisance:** a device on the LAN can use up the 10 proof attempts and close the pairing window. You would have to show a new QR code. It can't pair or read anything. Per-address throttling is future work.
-6. **One phone at a time:** if two paired phones connect, the newer connection replaces the older one, so they may take turns. Multi-phone support is future work.
-7. **A failed Keychain save** when forgetting a device is shown as a warning. The device is cut off immediately, but it could be trusted again after a restart. Retry Forget if you see the warning.
-8. **Development signing:** the Mac app is signed with a local self-signed identity. That's fine for personal use, but it isn't notarized.
-9. **No independent security audit** has been done.
+5. **A paired phone is trusted.** Limits exist (window, space reservation, list caps), but a malicious *paired* phone could still flood messages or fill disk space up to the free-space margin. Only pair phones you own.
+6. **Pairing nuisance:** a device on the LAN can use up the 10 proof attempts and close the pairing window. You would have to show a new QR code. It can't pair or read anything. Per-address throttling is future work.
+7. **One phone at a time:** if two paired phones connect, the newer connection replaces the older one, so they may take turns. Multi-phone support is future work.
+8. **A failed Keychain save** when forgetting a device is shown as a warning. The device is cut off immediately, but it could be trusted again after a restart. Retry Forget if you see the warning.
+9. **Development signing:** the Mac app is signed with a local self-signed identity. That's fine for personal use, but it isn't notarized.
+10. **No independent security audit** has been done.
 
 ## Review history
-- 2026-10-20: AI review of the file, clipboard, notification and mirroring code. See the commit history for fixes.
+- 2026-10-20: AI review of the file, clipboard, notification and mirroring code. It found **one critical issue, now fixed**: on the Mac, a file name with a zero-width character after `/` slipped past the safe-name rules, so a paired phone could write outside the download folder. The rules now work on Unicode code points (matching Android), and the final path is checked with `realpath`, so symlinks can't redirect either. Regression tests: 6 shared vectors + 2 end-to-end tests. Medium-severity fixes the same day:
+  - **Disk space:** reserved for in-flight transfers; two transfers can no longer share a partial file.
+  - **Android sharing:** the Share sheet accepts only `content://` URIs; notification messages are sent strictly in order; Mac→phone dismiss is limited to notifications M’AND shared; settings are read before acting on a cold start.
+  - **Android files:** stale partial files are cleaned after 7 days; the prepare-time cancel race is fixed.
+  - **Both sides:** only features the peer announced are accepted.
 - 2026-10-19: an AI security review of the Mac and Android code found no critical issues. One high-severity bug (pairing was cancelled if Allow took more than about a second) and several medium-severity hardening items were fixed the same day, with regression tests.
 
 ## Reporting

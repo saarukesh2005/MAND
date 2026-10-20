@@ -93,12 +93,23 @@ class BridgeClient private constructor(private val context: Context) {
     suspend fun send(message: Message): Boolean {
         val current = session ?: return false
         if (_state.value !is LinkState.Connected) return false
-        return runCatching { current.send(message) }.isSuccess
+        return try {
+            current.send(message)
+            true
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            false
+        }
     }
 
-    /** Fire-and-forget variant for callbacks that can't suspend. */
+    /** Fire-and-forget for callbacks that can't suspend. One queue keeps messages in order. */
     fun sendAsync(message: Message) {
-        scope.launch { send(message) }
+        outbox.trySend(message)
+    }
+
+    private val outbox = Channel<Message>(Channel.UNLIMITED).also { channel ->
+        scope.launch { for (message in channel) send(message) }
     }
 
     /** Starts (or keeps) the reconnect loop. Called by the foreground service. */
@@ -382,8 +393,15 @@ class BridgeClient private constructor(private val context: Context) {
                     is Message.Error -> Log.i(TAG, "Mac reported error ${message.code}")
                     is Message.FileOffer, is Message.FileAccept, is Message.FileReject, is Message.FileChunk,
                     is Message.FileAck, is Message.FileDone, is Message.FileResult, is Message.FileCancel,
-                    is Message.ClipboardText, is Message.NotificationDismiss ->
-                        handlers.forEach { handler -> runCatching { handler.onMessage(message) } }
+                    is Message.ClipboardText, is Message.NotificationDismiss -> {
+                        val feature = when (message) {
+                            is Message.ClipboardText -> Feature.CLIPBOARD
+                            is Message.NotificationDismiss -> Feature.NOTIFICATIONS
+                            else -> Feature.FILES
+                        }
+                        // Only features the Mac announced in its hello are accepted.
+                        if (feature in macFeatures) handlers.forEach { handler -> runCatching { handler.onMessage(message) } }
+                    }
                     else -> Unit // pong, unknown future messages: ignore
                 }
             }

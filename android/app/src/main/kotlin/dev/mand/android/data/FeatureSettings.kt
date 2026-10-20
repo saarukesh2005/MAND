@@ -8,10 +8,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /** What the user chose to share. Everything starts off: nothing is shared until switched on. */
@@ -31,17 +28,27 @@ class FeatureSettings(private val context: Context) {
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val loaded = kotlinx.coroutines.CompletableDeferred<Unit>()
+    private val _prefs = kotlinx.coroutines.flow.MutableStateFlow(FeaturePrefs())
 
     /** Always-current snapshot; readable from any thread (e.g. the notification listener). */
-    val prefs: StateFlow<FeaturePrefs> = context.featureStore.data
-        .map { p ->
-            FeaturePrefs(
-                clipboardEnabled = p[Keys.CLIPBOARD] ?: false,
-                notificationsEnabled = p[Keys.NOTIFICATIONS] ?: false,
-                allowedApps = p[Keys.ALLOWED_APPS] ?: emptySet(),
-            )
+    val prefs: StateFlow<FeaturePrefs> = _prefs
+
+    init {
+        scope.launch {
+            context.featureStore.data.collect { p ->
+                _prefs.value = FeaturePrefs(
+                    clipboardEnabled = p[Keys.CLIPBOARD] ?: false,
+                    notificationsEnabled = p[Keys.NOTIFICATIONS] ?: false,
+                    allowedApps = p[Keys.ALLOWED_APPS] ?: emptySet(),
+                )
+                loaded.complete(Unit) // only after the value above is visible
+            }
         }
-        .stateIn(scope, SharingStarted.Eagerly, FeaturePrefs())
+    }
+
+    /** Suspends until the saved settings have been read (they start as all-off defaults). */
+    suspend fun awaitLoaded() = loaded.await()
 
     fun setClipboard(enabled: Boolean) = edit { it[Keys.CLIPBOARD] = enabled }
 
