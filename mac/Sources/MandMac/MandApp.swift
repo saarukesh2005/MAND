@@ -53,6 +53,12 @@ struct MenuBarContent: View {
             NSApp.activate()
         }
         .keyboardShortcut("o")
+        if let ringing = model.ringingPhone {
+            Text("Incoming call: \(ringing.call?.caller ?? "Unknown caller")")
+            Button("Answer on \(ringing.device.name)") { model.respondToCall(on: ringing, answer: true) }
+            Button("Decline") { model.respondToCall(on: ringing, answer: false) }
+            Divider()
+        }
         if model.isConnected {
             if let status = model.phoneStatus {
                 Text("Battery \(status.battery)%\(status.charging ? " · charging" : "")")
@@ -83,4 +89,5 @@ final class UIState {
     var draft = ""
     var deviceToForget: PairedDevice?
     var isDropTargeted = false
+    var onboardingPage = 0
 }

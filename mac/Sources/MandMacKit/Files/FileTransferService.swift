@@ -5,9 +5,9 @@ import MandCore
 /// Two-way file transfer over the paired connection (protocol §3a, `file.v1`).
 /// All state lives on `queue`. Received names are never trusted: they go through `SafeFileName`.
 public final class FileTransferService: @unchecked Sendable {
-    public enum Direction: Sendable, Equatable { case incoming, outgoing }
+    public enum Direction: Sendable, Equatable, Codable { case incoming, outgoing }
 
-    public enum State: Sendable, Equatable {
+    public enum State: Sendable, Equatable, Codable {
         case preparing          // outgoing: hashing the file
         case waiting            // queued until the phone is connected / earlier transfers finish
         case offered            // outgoing: waiting for the phone to accept
@@ -19,7 +19,7 @@ public final class FileTransferService: @unchecked Sendable {
         case cancelled
     }
 
-    public struct Item: Identifiable, Sendable, Equatable {
+    public struct Item: Identifiable, Sendable, Equatable, Codable {
         public let id: String
         public let name: String
         public let direction: Direction

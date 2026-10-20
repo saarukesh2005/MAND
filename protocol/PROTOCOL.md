@@ -71,6 +71,7 @@ These are new message types under protocol version 1. Older apps ignore them, as
 | `clipboard.v1` | `clipboard.text` |
 | `device.v1` | `device.status` |
 | `notifications.v1` | `notification.posted`, `notification.removed`, `notification.dismiss` |
+| `calls.v1` | `call.state`, `call.action` |
 
 ### File transfer (`file.v1`)
 
@@ -118,6 +119,14 @@ How a transfer runs:
 
 ### Device status (`device.v1`)
 `device.status {battery, charging}`: battery is an integer from 0 to 100; charging is a boolean. The phone sends it when connected and whenever either value changes.
+
+### Calls (`calls.v1`)
+| type | direction | body |
+|---|---|---|
+| `call.state` | phone → Mac | `{state, caller?}`: `state` is `ringing`, `active` or `idle`; `caller` (≤128 bytes) is a display name or number when known |
+| `call.action` | Mac → phone | `{action}`: `answer` or `decline` (declining an active call hangs it up) |
+
+The phone sends `call.state` on every change of phone state, and only if the user turned on calls on the Mac. The call audio always stays on the phone.
 
 ### Notifications (`notifications.v1`)
 | type | direction | body |

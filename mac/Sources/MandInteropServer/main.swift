@@ -35,13 +35,15 @@ let server = BridgeServer(identity: identity, store: InMemoryPairedDeviceStore()
         print("CONNECTED \(device.name) features=\(features.sorted().joined(separator: ","))")
     case .phoneDisconnected(_, let reason):
         print("DISCONNECTED \(reason)")
-    case .textReceived(let text, _):
+    case .textReceived(let text, let device):
         print("TEXT \(text)")
-        box.server?.sendText("echo:\(text)")
-    case .featureMessage(let message):
+        box.server?.sendText("echo:\(text)", to: device.fingerprint)
+    case .featureMessage(let message, let device):
         switch message {
-        case .clipboardText(let text): box.server?.send(.clipboardText("echo:\(text)"))
-        case .deviceStatus(let battery, let charging): box.server?.sendText("battery:\(battery):\(charging)")
+        case .clipboardText(let text): box.server?.send(.clipboardText("echo:\(text)"), to: device.fingerprint)
+        case .deviceStatus(let battery, let charging):
+            box.server?.sendText("battery:\(battery):\(charging)", to: device.fingerprint)
+        case .callState(.ringing, _): box.server?.send(.callAction(.decline), to: device.fingerprint)
         default: break
         }
     case .listenerFailed(let reason):

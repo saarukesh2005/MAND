@@ -18,7 +18,7 @@ struct DevicesView: View {
             } else {
                 List {
                     ForEach(model.devices) { device in
-                        DeviceRow(device: device, isConnected: model.connected?.fingerprint == device.fingerprint) {
+                        DeviceRow(device: device, isConnected: model.isConnected(device)) {
                             ui.deviceToForget = device
                         }
                     }
@@ -42,8 +42,7 @@ private struct DeviceRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: "iphone").font(.title2).foregroundStyle(isConnected ? .green : .secondary)
-                .accessibilityHidden(true)
+            DeviceAvatar(connected: isConnected, size: 40)
             VStack(alignment: .leading, spacing: 2) {
                 Text(device.name).font(.body.weight(.medium))
                 Text(detail).font(.caption).foregroundStyle(.secondary)

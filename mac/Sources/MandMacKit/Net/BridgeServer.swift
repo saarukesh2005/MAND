@@ -16,6 +16,9 @@ public final class BridgeServer: @unchecked Sendable {
     static let maxPendingPerAddress = 4
     /// Frame size allowed before a session is ready; hello/pair.request are tiny.
     static let preReadyMaxFrameBytes = 4_096
+    /// Per-address pairing throttle: after this many wrong proofs, that address is refused for a while.
+    static let maxFailedProofsPerAddress = 3
+    static let addressCooldown: TimeInterval = 60
 
     public struct PairingRequest: Sendable, Identifiable, Equatable {
         public let id: UUID
@@ -34,8 +37,8 @@ public final class BridgeServer: @unchecked Sendable {
         case pairingFinished(name: String, outcome: String)
         case devicesChanged([PairedDevice])
         case phoneConnected(PairedDevice, address: String?, features: Set<String>)
-        /// A feature message (files, clipboard, device, notifications) from the connected phone.
-        case featureMessage(Message)
+        /// A feature message (files, clipboard, device, notifications, calls) from a connected phone.
+        case featureMessage(Message, from: PairedDevice)
         case phoneDisconnected(PairedDevice, reason: String)
         case textReceived(String, from: PairedDevice)
         case log(String)
@@ -54,7 +57,9 @@ public final class BridgeServer: @unchecked Sendable {
     private var timer: DispatchSourceTimer?
     private var devices: [PairedDevice] = []
     private var sessions: [UUID: Session] = [:]
-    private var activeSessionID: UUID?
+    /// One live session per paired phone (several phones can be connected at once).
+    private var activeSessions: [Fingerprint: UUID] = [:]
+    private var failedProofs: [String: (count: Int, blockedUntil: Date?)] = [:]
     private var window: PairingWindow?
     public private(set) var port: UInt16?
 
@@ -121,19 +126,31 @@ public final class BridgeServer: @unchecked Sendable {
         queue.async { self.finishApproval(id: id, approved: approved) }
     }
 
-    /// Sends a message to the connected phone. `completion(false)` if no phone is connected or sending failed.
-    public func send(_ message: Message, completion: (@Sendable (Bool) -> Void)? = nil) {
+    /// Sends a message to one connected phone. `completion(false)` if it isn't connected or sending failed.
+    public func send(_ message: Message, to phone: Fingerprint, completion: (@Sendable (Bool) -> Void)? = nil) {
         queue.async {
-            guard let session = self.activeSession else { completion?(false); return }
+            guard let session = self.activeSession(for: phone) else { completion?(false); return }
             session.framed.send(message, version: session.version, completion: completion)
         }
     }
 
-    public func sendText(_ text: String) {
+    public func sendText(_ text: String, to phone: Fingerprint) {
         queue.async {
-            guard let session = self.activeSession else { self.emit(.log("Not sent: no phone connected")); return }
+            guard let session = self.activeSession(for: phone) else { self.emit(.log("Not sent: that phone isn’t connected")); return }
             session.framed.send(.text(text), version: session.version)
             self.emit(.log("Sent a test message"))
+        }
+    }
+
+    /// After the Mac wakes from sleep, connections that went quiet are almost certainly dead:
+    /// close them now so the status is right immediately (phones reconnect on their own).
+    public func dropStaleSessions(silentFor seconds: TimeInterval = 15) {
+        queue.async {
+            let now = Date()
+            for session in self.sessions.values where session.isReady
+                && now.timeIntervalSince(session.framed.lastReceived) > seconds {
+                session.framed.close(reason: "connection lost while the Mac was asleep")
+            }
         }
     }
 
@@ -142,8 +159,8 @@ public final class BridgeServer: @unchecked Sendable {
             let name = self.devices.first { $0.fingerprint == fingerprint }?.name ?? "device"
             // Stop trusting the session at once — before the goodbye has even been sent.
             for session in self.sessions.values where session.peer == fingerprint {
-                if session.id == self.activeSessionID, let device = session.device {
-                    self.activeSessionID = nil
+                if self.activeSessions[fingerprint] == session.id, let device = session.device {
+                    self.activeSessions[fingerprint] = nil
                     self.emit(.phoneDisconnected(device, reason: "forgotten on this Mac"))
                 }
                 session.state = .closing
@@ -242,8 +259,8 @@ public final class BridgeServer: @unchecked Sendable {
             if case .awaitingApproval(let request) = session.state {
                 emit(.pairingFinished(name: request.name, outcome: "cancelled"))
             }
-            if activeSessionID == sessionID, let device = session.device {
-                activeSessionID = nil
+            if let device = session.device, activeSessions[device.fingerprint] == sessionID {
+                activeSessions[device.fingerprint] = nil
                 markSeen(device.fingerprint, address: session.framed.remoteAddress)
                 emit(.phoneDisconnected(device, reason: reason))
                 emit(.log("\(device.name) disconnected: \(reason)"))
@@ -263,6 +280,9 @@ public final class BridgeServer: @unchecked Sendable {
             if let peer = session.peer, let device = devices.first(where: { $0.fingerprint == peer }) {
                 makeReady(session, device: device)
             } else if window?.isUsable(at: Date()) == true {
+                if let address = session.framed.remoteAddress, isThrottled(address) {
+                    reject(session, .pairingTooManyAttempts, asPairResult: true); return
+                }
                 session.state = .awaitingPairRequest
             } else {
                 reject(session, .notPaired)
@@ -285,7 +305,9 @@ public final class BridgeServer: @unchecked Sendable {
 
         case (.ready, let feature) where feature.feature != nil:
             // Only features the phone announced in its hello are accepted.
-            if let name = feature.feature, session.features.contains(name) { emit(.featureMessage(feature)) }
+            if let name = feature.feature, session.features.contains(name), let device = session.device {
+                emit(.featureMessage(feature, from: device))
+            }
 
         case (_, .error(let code, _)):
             emit(.log("Phone reported an error: \(code)"))
@@ -316,6 +338,7 @@ public final class BridgeServer: @unchecked Sendable {
             endPairingWindow(reason: nil)
         case .rejected(let error):
             emit(.log("Pairing attempt rejected: \(error.rawValue)"))
+            if error == .pairingInvalid, let address = session.framed.remoteAddress { recordFailedProof(address) }
             if error == .pairingTooManyAttempts { endPairingWindow(reason: "Too many failed pairing attempts") }
             reject(session, error, asPairResult: true)
         }
@@ -337,14 +360,15 @@ public final class BridgeServer: @unchecked Sendable {
     }
 
     private func makeReady(_ session: Session, device: PairedDevice) {
-        if let previous = activeSessionID, previous != session.id, let old = sessions[previous] {
+        // A phone reconnecting replaces only its own older connection; other phones stay connected.
+        if let previous = activeSessions[device.fingerprint], previous != session.id, let old = sessions[previous] {
             old.device = nil // don't report a disconnect for the replaced connection
             old.framed.close(reason: "replaced by a newer connection")
         }
         session.state = .ready
         session.device = device
         session.framed.maxFrameBytes = Framing.maxPayloadBytes
-        activeSessionID = session.id
+        activeSessions[device.fingerprint] = session.id
         session.framed.send(.sessionReady, version: session.version)
         let seen = markSeen(device.fingerprint, address: session.framed.remoteAddress, name: session.helloName) ?? device
         session.device = seen
@@ -452,7 +476,23 @@ public final class BridgeServer: @unchecked Sendable {
         return cleaned.isEmpty ? "Android phone" : cleaned
     }
 
-    private var activeSession: Session? { activeSessionID.flatMap { sessions[$0] } }
+    private func activeSession(for phone: Fingerprint) -> Session? { activeSessions[phone].flatMap { sessions[$0] } }
+
+    // MARK: - Per-address pairing throttle
+
+    private func isThrottled(_ address: String) -> Bool {
+        guard let until = failedProofs[address]?.blockedUntil else { return false }
+        if until > Date() { return true }
+        failedProofs[address] = nil
+        return false
+    }
+
+    private func recordFailedProof(_ address: String) {
+        let count = (failedProofs[address]?.count ?? 0) + 1
+        let blocked = count >= Self.maxFailedProofsPerAddress ? Date().addingTimeInterval(Self.addressCooldown) : nil
+        failedProofs[address] = (count, blocked)
+        if blocked != nil { emit(.log("Too many wrong pairing codes from \(address); ignoring it for a minute")) }
+    }
 
     private func emit(_ event: Event) { onEvent(event) }
 }
@@ -483,5 +523,5 @@ final class Session {
 }
 
 public enum AppInfo {
-    public static let version = "0.2.0"
+    public static let version = "0.3.0"
 }

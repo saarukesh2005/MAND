@@ -55,6 +55,12 @@ struct RootView: View {
         .sheet(isPresented: Binding(get: { model.invitation != nil }, set: { if !$0 { model.cancelPairing() } })) {
             PairingSheet()
         }
+        .sheet(isPresented: Binding(
+            get: { !model.settings.hasCompletedOnboarding && model.devices.isEmpty && model.startupError == nil
+                   && model.invitation == nil },
+            set: { if !$0 { model.settings.hasCompletedOnboarding = true } })) {
+            OnboardingView()
+        }
         .alert(
             "Allow “\(model.pendingApproval?.name ?? "this phone")” to pair with this Mac?",
             isPresented: Binding(get: { model.pendingApproval != nil },

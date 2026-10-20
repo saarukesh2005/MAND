@@ -21,16 +21,17 @@ struct FilesView: View {
                 Button("Change…") { model.chooseDownloadFolder() }
                     .buttonStyle(.link)
                 Spacer()
-                if model.transfers.contains(where: \.isFinished) {
-                    Button("Clear Finished") { model.clearFinishedTransfers() }
+                if model.transfers.contains(where: \.item.isFinished) {
+                    Button("Clear History") { model.clearFinishedTransfers() }
                 }
             }
             if model.transfers.isEmpty {
                 ContentUnavailableView("No transfers yet", systemImage: "arrow.up.arrow.down",
                                        description: Text("Send files from this Mac, or share files to “M’AND” from your phone."))
             } else {
-                List(model.transfers.reversed()) { item in TransferRow(item: item) }
+                List(model.transfers) { entry in TransferRow(item: entry.item, deviceName: entry.deviceName) }
                     .listStyle(.inset)
+                    .scrollContentBackground(.hidden)
             }
         }
         .padding(24)
@@ -80,6 +81,7 @@ private struct DropZone: View {
 private struct TransferRow: View {
     @Environment(AppModel.self) private var model
     let item: FileTransferService.Item
+    let deviceName: String
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
@@ -93,7 +95,8 @@ private struct TransferRow: View {
                     ProgressView(value: Double(item.transferred), total: Double(item.size))
                         .progressViewStyle(.linear)
                 }
-                Text(detail).font(.caption).foregroundStyle(.secondary)
+                Text("\(detail) · \(item.direction == .incoming ? "from" : "to") \(deviceName)")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             Spacer(minLength: 8)
             actions
@@ -109,7 +112,9 @@ private struct TransferRow: View {
                     .buttonStyle(.link)
             }
         case .failed, .cancelled:
-            if item.direction == .outgoing { Button("Retry") { model.retryTransfer(item.id) } }
+            if item.direction == .outgoing, model.liveTransfers.contains(where: { $0.id == item.id }) || model.isConnected {
+                Button("Retry") { model.retryTransfer(item.id) }
+            }
         default:
             Button("Cancel") { model.cancelTransfer(item.id) }
         }
@@ -117,8 +122,8 @@ private struct TransferRow: View {
 
     private var tint: Color {
         switch item.state {
-        case .done, .alreadyThere: .green
-        case .failed: .orange
+        case .done, .alreadyThere: Theme.positive
+        case .failed: Theme.caution
         default: .accentColor
         }
     }

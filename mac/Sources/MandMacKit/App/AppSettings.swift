@@ -17,6 +17,11 @@ public final class AppSettings {
         didSet { defaults.set(mirroringAllowsControl, forKey: Keys.mirroringAllowsControl) }
     }
     public var scrcpyPath: String? { didSet { defaults.set(scrcpyPath, forKey: Keys.scrcpyPath) } }
+    public var hasCompletedOnboarding: Bool {
+        didSet { defaults.set(hasCompletedOnboarding, forKey: Keys.hasCompletedOnboarding) }
+    }
+    /// Unofficial Quick Share receiving; off until the user turns it on.
+    public var quickShareEnabled: Bool { didSet { defaults.set(quickShareEnabled, forKey: Keys.quickShareEnabled) } }
 
     enum Keys {
         static let downloadFolder = "downloadFolder"
@@ -25,6 +30,8 @@ public final class AppSettings {
         static let notificationsInMacCenter = "notificationsInMacCenter"
         static let mirroringAllowsControl = "mirroringAllowsControl"
         static let scrcpyPath = "scrcpyPath"
+        static let hasCompletedOnboarding = "hasCompletedOnboarding"
+        static let quickShareEnabled = "quickShareEnabled"
     }
 
     public static var defaultDownloadFolder: URL {
@@ -41,5 +48,7 @@ public final class AppSettings {
         notificationsInMacCenter = defaults.bool(forKey: Keys.notificationsInMacCenter)
         mirroringAllowsControl = defaults.bool(forKey: Keys.mirroringAllowsControl)
         scrcpyPath = defaults.string(forKey: Keys.scrcpyPath)
+        hasCompletedOnboarding = defaults.bool(forKey: Keys.hasCompletedOnboarding)
+        quickShareEnabled = defaults.bool(forKey: Keys.quickShareEnabled)
     }
 }

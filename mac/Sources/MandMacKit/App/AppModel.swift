@@ -4,6 +4,7 @@ import MandCore
 import Observation
 
 /// Everything the Mac UI shows, derived only from real server events.
+/// Several phones can be connected at once; actions go to the `selected` phone.
 @MainActor
 @Observable
 public final class AppModel {
@@ -19,6 +20,7 @@ public final class AppModel {
         public let direction: Direction
         public let text: String
         public let date: Date
+        public let deviceName: String
     }
 
     public struct LogLine: Identifiable, Equatable {
@@ -31,6 +33,37 @@ public final class AppModel {
         public let battery: Int
         public let charging: Bool
         public let updated: Date
+
+        /// Readings older than this are shown as "last known".
+        public static let staleAfter: TimeInterval = 10 * 60
+        public func isStale(at now: Date = Date()) -> Bool { now.timeIntervalSince(updated) > Self.staleAfter }
+    }
+
+    public struct CallInfo: Equatable {
+        public let state: Message.CallState
+        public let caller: String?
+        public let since: Date
+    }
+
+    /// A phone with a live, trusted connection.
+    public struct ConnectedPhone: Identifiable, Equatable {
+        public let device: PairedDevice
+        public var address: String?
+        public var features: Set<String>
+        public var status: PhoneStatus?
+        public var notifications: [PhoneNotification] = []
+        public var call: CallInfo?
+        public let connectedAt: Date
+
+        public var id: String { device.fingerprint.hex }
+        public func supports(_ feature: String) -> Bool { features.contains(feature) }
+    }
+
+    /// A transfer row for the UI: live (from a transfer engine) or remembered history.
+    public struct TransferEntry: Identifiable, Equatable {
+        public let item: FileTransferService.Item
+        public let deviceName: String
+        public var id: String { item.id }
     }
 
     public static let maxLogLines = 200
@@ -41,9 +74,8 @@ public final class AppModel {
     public private(set) var serverStatus: ServerStatus = .starting
     public private(set) var isAdvertising = false
     public private(set) var devices: [PairedDevice] = []
-    public private(set) var connected: PairedDevice?
-    public private(set) var connectedAddress: String?
-    public private(set) var phoneFeatures: Set<String> = []
+    public private(set) var phones: [ConnectedPhone] = []
+    public var selectedPhoneID: String?
     public private(set) var lastDisconnect: (name: String, reason: String, date: Date)?
     public private(set) var invitation: PairingInvitation?
     public private(set) var pairingNotice: String?
@@ -53,9 +85,8 @@ public final class AppModel {
     public var pendingApproval: BridgeServer.PairingRequest?
 
     // Features
-    public private(set) var transfers: [FileTransferService.Item] = []
-    public private(set) var phoneStatus: PhoneStatus?
-    public private(set) var notifications: [PhoneNotification] = []
+    public private(set) var liveTransfers: [TransferEntry] = []
+    public private(set) var history: [TransferRecord] = []
     public private(set) var clipboardNotice: String?
     public private(set) var mirroringState: ScrcpyManager.State = .notInstalled
     public private(set) var mirroringOutput: [String] = []
@@ -64,24 +95,57 @@ public final class AppModel {
 
     public let macName: String
     private var server: BridgeServer?
-    private var files: FileTransferService?
+    private var fileServices: [Fingerprint: FileTransferService] = [:]
+    private var liveByDevice: [Fingerprint: [FileTransferService.Item]] = [:]
+    private let historyStore: TransferHistoryStore
     private let clipboard = ClipboardService()
     private let notifier = MacNotifier()
     private let scrcpy: ScrcpyManager
     private let downloadFolderBox = LockedValue(AppSettings.defaultDownloadFolder)
+    private var wakeObserver: NSObjectProtocol?
 
-    public init(macName: String, settings: AppSettings = AppSettings()) {
+    public init(macName: String, settings: AppSettings = AppSettings(),
+                historyStore: TransferHistoryStore = TransferHistoryStore()) {
         self.macName = macName
         self.settings = settings
+        self.historyStore = historyStore
         scrcpy = ScrcpyManager(customPath: settings.scrcpyPath)
+        history = historyStore.load()
         scrcpy.onChange = { [weak self] in self?.syncMirroring() }
         syncMirroring()
     }
 
-    public var isConnected: Bool { connected != nil }
+    // MARK: - Derived state (the selected phone)
+
+    public var isConnected: Bool { !phones.isEmpty }
+
+    /// The phone that actions (send files, clipboard, test message) go to.
+    public var selected: ConnectedPhone? {
+        phones.first { $0.id == selectedPhoneID } ?? phones.last
+    }
+
+    public var connected: PairedDevice? { selected?.device }
+    public var connectedAddress: String? { selected?.address }
+    public var phoneStatus: PhoneStatus? { selected?.status }
+    public var notifications: [PhoneNotification] { selected?.notifications ?? [] }
     public var macFingerprint: Fingerprint? { server?.identity.fingerprint }
 
-    public func phoneSupports(_ feature: String) -> Bool { isConnected && phoneFeatures.contains(feature) }
+    /// The first phone with a ringing call, if any.
+    public var ringingPhone: ConnectedPhone? { phones.first { $0.call?.state == .ringing } }
+
+    public func phoneSupports(_ feature: String) -> Bool { selected?.supports(feature) ?? false }
+
+    /// Live transfers first, then remembered history (newest first).
+    public var transfers: [TransferEntry] {
+        let liveIDs = Set(liveTransfers.map(\.id))
+        let past = history.reversed().filter { !liveIDs.contains($0.id) }
+            .map { TransferEntry(item: $0.item, deviceName: $0.deviceName) }
+        return liveTransfers + past
+    }
+
+    public func isConnected(_ device: PairedDevice) -> Bool {
+        phones.contains { $0.device.fingerprint == device.fingerprint }
+    }
 
     // MARK: - Lifecycle
 
@@ -96,35 +160,29 @@ public final class AppModel {
             startupError = "M’AND couldn’t set up its security key: \(error)"
             return
         }
-
-        let box = ServerReference()
-        let folder = downloadFolderBox
-        folder.set(settings.downloadFolder)
-        let files = FileTransferService(
-            destination: { folder.get() },
-            send: { message, completion in
-                guard let server = box.server else { completion?(false); return }
-                server.send(message, completion: completion)
-            },
-            onChange: { [weak self] items in
-                DispatchQueue.main.async { MainActor.assumeIsolated { self?.transfers = items } }
-            })
+        downloadFolderBox.set(settings.downloadFolder)
+        let routes = FileRoutes()
         let server = BridgeServer(identity: identity, store: store, deviceName: macName) { [weak self] event in
-            // File chunks go straight to the transfer queue; everything else to the UI, in order.
-            if case .featureMessage(let message) = event, message.feature == Feature.files {
-                files.handle(message)
+            // File messages go straight to that phone's transfer queue; everything else to the UI, in order.
+            if case .featureMessage(let message, let device) = event, message.feature == Feature.files,
+               let service = routes.service(for: device.fingerprint) {
+                service.handle(message)
                 return
             }
             DispatchQueue.main.async { MainActor.assumeIsolated { self?.apply(event) } }
         }
-        box.server = server
-        self.files = files
+        self.fileRoutes = routes
         self.server = server
-        files.cleanUpPartials()
         server.start()
         if settings.clipboardAutoSend { startClipboardWatch() }
         if settings.notificationsInMacCenter { Task { _ = await notifier.requestAuthorization() } }
+        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak server] _ in
+            server?.dropStaleSessions()
+        }
     }
+
+    private var fileRoutes: FileRoutes?
 
     public func stop() {
         server?.stop()
@@ -149,13 +207,15 @@ public final class AppModel {
         server?.resolvePairing(id: request.id, approved: approved)
     }
 
+    public func select(_ phone: ConnectedPhone) { selectedPhoneID = phone.id }
+
     /// Returns false (and sends nothing) if the text is empty, too long, or no phone is connected.
     @discardableResult
     public func sendTestMessage(_ text: String) -> Bool {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard isConnected, !trimmed.isEmpty, trimmed.utf8.count <= Message.maxTextBytes else { return false }
-        server?.sendText(trimmed)
-        appendChat(ChatLine(direction: .fromMac, text: trimmed, date: Date()))
+        guard let phone = selected, !trimmed.isEmpty, trimmed.utf8.count <= Message.maxTextBytes else { return false }
+        server?.sendText(trimmed, to: phone.device.fingerprint)
+        appendChat(ChatLine(direction: .fromMac, text: trimmed, date: Date(), deviceName: phone.device.name))
         return true
     }
 
@@ -166,12 +226,18 @@ public final class AppModel {
     // MARK: - Files
 
     public func sendFiles(_ urls: [URL]) {
-        files?.send(urls: urls)
+        guard let phone = selected else { return }
+        fileService(for: phone.device).send(urls: urls)
     }
 
-    public func cancelTransfer(_ id: String) { files?.cancel(id: id) }
-    public func retryTransfer(_ id: String) { files?.retry(id: id) }
-    public func clearFinishedTransfers() { files?.clearFinished() }
+    public func cancelTransfer(_ id: String) { owner(of: id)?.cancel(id: id) }
+    public func retryTransfer(_ id: String) { owner(of: id)?.retry(id: id) }
+
+    public func clearFinishedTransfers() {
+        fileServices.values.forEach { $0.clearFinished() }
+        history = []
+        historyStore.save([])
+    }
 
     public func chooseDownloadFolder() {
         let panel = NSOpenPanel()
@@ -187,24 +253,66 @@ public final class AppModel {
         }
     }
 
+    /// One transfer engine per phone, kept after disconnects so interrupted transfers can resume.
+    private func fileService(for device: PairedDevice) -> FileTransferService {
+        let fingerprint = device.fingerprint
+        if let existing = fileServices[fingerprint] { return existing }
+        let folder = downloadFolderBox
+        let serverBox = ServerReference()
+        serverBox.server = server
+        let service = FileTransferService(
+            destination: { folder.get() },
+            send: { message, completion in
+                guard let server = serverBox.server else { completion?(false); return }
+                server.send(message, to: fingerprint, completion: completion)
+            },
+            onChange: { [weak self] items in
+                DispatchQueue.main.async { MainActor.assumeIsolated { self?.transfersChanged(items, device: device) } }
+            })
+        fileServices[fingerprint] = service
+        fileRoutes?.set(service, for: fingerprint)
+        if fileServices.count == 1 { service.cleanUpPartials() }
+        return service
+    }
+
+    private func owner(of id: String) -> FileTransferService? {
+        liveByDevice.first { $0.value.contains { $0.id == id } }.flatMap { fileServices[$0.key] }
+    }
+
+    private func transfersChanged(_ items: [FileTransferService.Item], device: PairedDevice) {
+        liveByDevice[device.fingerprint] = items.filter { !$0.isFinished }
+        let known = Set(history.map(\.id))
+        let finished = items.filter { $0.isFinished && !known.contains($0.id) }
+        if !finished.isEmpty {
+            history = Array((history + finished.map {
+                TransferRecord(item: $0, deviceName: device.name, finishedAt: Date())
+            }).suffix(TransferHistoryStore.limit))
+            historyStore.save(history)
+        }
+        let names = Dictionary(uniqueKeysWithValues: devices.map { ($0.fingerprint, $0.name) })
+        liveTransfers = liveByDevice.flatMap { fingerprint, items in
+            items.map { TransferEntry(item: $0, deviceName: names[fingerprint] ?? device.name) }
+        }
+    }
+
     // MARK: - Clipboard
 
-    /// Sends the Mac clipboard to the phone (deliberate user action).
+    /// Sends the Mac clipboard to the selected phone (deliberate user action).
     public func sendClipboard() {
         guard settings.clipboardEnabled else {
             clipboardNotice = "Turn on clipboard sharing first."
             return
         }
-        guard phoneSupports(Feature.clipboard) else {
+        guard let phone = selected, phone.supports(Feature.clipboard) else {
             clipboardNotice = "Connect a phone with clipboard sharing to send."
             return
         }
         let (text, result) = clipboard.currentText()
         switch result {
         case .sent:
-            server?.send(.clipboardText(text ?? ""))
-            clipboardNotice = "Sent the clipboard to \(connected?.name ?? "your phone")."
-            log("Sent clipboard text to the phone")
+            server?.send(.clipboardText(text ?? ""), to: phone.device.fingerprint)
+            clipboardNotice = "Sent the clipboard to \(phone.device.name)."
+            log("Sent clipboard text to \(phone.device.name)")
         case .empty: clipboardNotice = "The clipboard has no text to send."
         case .concealed: clipboardNotice = "Not sent: the clipboard holds a password or other private item."
         case .tooLarge: clipboardNotice = "Not sent: the copied text is too large (over 256 KB)."
@@ -223,20 +331,24 @@ public final class AppModel {
 
     private func startClipboardWatch() {
         clipboard.watch { [weak self] text in
-            guard let self, self.settings.clipboardEnabled, self.phoneSupports(Feature.clipboard) else { return }
-            self.server?.send(.clipboardText(text))
+            guard let self, self.settings.clipboardEnabled,
+                  let phone = self.selected, phone.supports(Feature.clipboard) else { return }
+            self.server?.send(.clipboardText(text), to: phone.device.fingerprint)
         }
     }
 
     // MARK: - Notifications
 
     public func dismissNotification(_ notification: PhoneNotification) {
-        server?.send(.notificationDismiss(key: notification.key))
-        removeNotification(key: notification.key)
+        guard let phone = selected else { return }
+        server?.send(.notificationDismiss(key: notification.key), to: phone.device.fingerprint)
+        update(phone.device.fingerprint) { $0.notifications.removeAll { $0.key == notification.key } }
+        notifier.remove(key: notification.key)
     }
 
     public func clearNotifications() {
-        notifications = []
+        guard let phone = selected else { return }
+        update(phone.device.fingerprint) { $0.notifications = [] }
         notifier.removeAll()
     }
 
@@ -254,9 +366,12 @@ public final class AppModel {
         }
     }
 
-    private func removeNotification(key: String) {
-        notifications.removeAll { $0.key == key }
-        notifier.remove(key: key)
+    // MARK: - Calls
+
+    /// Answers or declines the ringing call on `phone`. The call audio stays on the phone.
+    public func respondToCall(on phone: ConnectedPhone, answer: Bool) {
+        server?.send(.callAction(answer ? .answer : .decline), to: phone.device.fingerprint)
+        log("\(answer ? "Answered" : "Declined") a call on \(phone.device.name)")
     }
 
     // MARK: - Screen mirroring
@@ -319,52 +434,70 @@ public final class AppModel {
             }
         case .devicesChanged(let devices):
             self.devices = devices
-            if let current = connected, !devices.contains(where: { $0.fingerprint == current.fingerprint }) {
-                connected = nil
-            }
+            let trusted = Set(devices.map(\.fingerprint))
+            phones.removeAll { !trusted.contains($0.device.fingerprint) }
         case .phoneConnected(let device, let address, let features):
-            connected = device
-            connectedAddress = address
-            phoneFeatures = features
-            files?.connectionChanged(connected: features.contains(Feature.files))
+            phones.removeAll { $0.device.fingerprint == device.fingerprint }
+            phones.append(ConnectedPhone(device: device, address: address, features: features, connectedAt: Date()))
+            selectedPhoneID = selectedPhoneID ?? device.fingerprint.hex
+            if features.contains(Feature.files) { fileService(for: device).connectionChanged(connected: true) }
         case .phoneDisconnected(let device, let reason):
-            if connected?.fingerprint == device.fingerprint {
-                connected = nil
-                connectedAddress = nil
-                phoneFeatures = []
-                files?.connectionChanged(connected: false)
-                notifications = []
-                notifier.removeAll()
+            if let phone = phones.first(where: { $0.device.fingerprint == device.fingerprint }) {
+                phone.notifications.forEach { notifier.remove(key: $0.key) }
+                notifier.remove(identifier: Self.callAlertID(phone))
             }
+            phones.removeAll { $0.device.fingerprint == device.fingerprint }
+            if selectedPhoneID == device.fingerprint.hex { selectedPhoneID = phones.last?.id }
+            fileServices[device.fingerprint]?.connectionChanged(connected: false)
             lastDisconnect = (device.name, reason, Date())
-        case .textReceived(let text, _):
-            appendChat(ChatLine(direction: .fromPhone, text: text, date: Date()))
-        case .featureMessage(let message):
-            applyFeature(message)
+        case .textReceived(let text, let device):
+            appendChat(ChatLine(direction: .fromPhone, text: text, date: Date(), deviceName: device.name))
+        case .featureMessage(let message, let device):
+            applyFeature(message, from: device)
         case .log(let text):
             log(text)
         }
     }
 
-    private func applyFeature(_ message: Message) {
+    private func applyFeature(_ message: Message, from device: PairedDevice) {
+        let fingerprint = device.fingerprint
         switch message {
         case .clipboardText(let text):
             guard settings.clipboardEnabled else { return }
             clipboard.apply(text)
-            clipboardNotice = "Copied text from \(connected?.name ?? "your phone") to this Mac’s clipboard."
-            log("Received clipboard text from the phone")
+            clipboardNotice = "Copied text from \(device.name) to this Mac’s clipboard."
+            log("Received clipboard text from \(device.name)")
         case .deviceStatus(let battery, let charging):
-            phoneStatus = PhoneStatus(battery: battery, charging: charging, updated: Date())
+            update(fingerprint) { $0.status = PhoneStatus(battery: battery, charging: charging, updated: Date()) }
         case .notificationPosted(let notification):
-            notifications.removeAll { $0.key == notification.key }
-            notifications.insert(notification, at: 0)
-            if notifications.count > Self.maxNotifications { notifications.removeLast() }
+            update(fingerprint) { phone in
+                phone.notifications.removeAll { $0.key == notification.key }
+                phone.notifications.insert(notification, at: 0)
+                if phone.notifications.count > Self.maxNotifications { phone.notifications.removeLast() }
+            }
             if settings.notificationsInMacCenter { notifier.show(notification) }
         case .notificationRemoved(let key):
-            removeNotification(key: key)
+            update(fingerprint) { $0.notifications.removeAll { $0.key == key } }
+            notifier.remove(key: key)
+        case .callState(let state, let caller):
+            update(fingerprint) { $0.call = state == .idle ? nil : CallInfo(state: state, caller: caller, since: Date()) }
+            guard let phone = phones.first(where: { $0.device.fingerprint == fingerprint }) else { return }
+            if state == .ringing {
+                notifier.show(title: "Incoming call on \(device.name)", body: caller ?? "Unknown caller",
+                              identifier: Self.callAlertID(phone))
+            } else {
+                notifier.remove(identifier: Self.callAlertID(phone))
+            }
         default:
             break
         }
+    }
+
+    private static func callAlertID(_ phone: ConnectedPhone) -> String { "call." + phone.id }
+
+    private func update(_ fingerprint: Fingerprint, _ change: (inout ConnectedPhone) -> Void) {
+        guard let index = phones.firstIndex(where: { $0.device.fingerprint == fingerprint }) else { return }
+        change(&phones[index])
     }
 
     private func appendChat(_ line: ChatLine) {
@@ -386,6 +519,14 @@ final class LockedValue<T: Sendable>: @unchecked Sendable {
 }
 
 /// Lets closures created before the server exists reach it later.
-private final class ServerReference: @unchecked Sendable {
+final class ServerReference: @unchecked Sendable {
     weak var server: BridgeServer?
+}
+
+/// Thread-safe map from phone to its transfer engine, read on the server queue.
+final class FileRoutes: @unchecked Sendable {
+    private let lock = NSLock()
+    private var services: [Fingerprint: FileTransferService] = [:]
+    func service(for fingerprint: Fingerprint) -> FileTransferService? { lock.withLock { services[fingerprint] } }
+    func set(_ service: FileTransferService, for fingerprint: Fingerprint) { lock.withLock { services[fingerprint] = service } }
 }

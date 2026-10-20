@@ -43,9 +43,14 @@ final class BridgeServerTests {
         return try #require(port)
     }
 
+    /// Opens a new pairing window and returns its (fresh) invitation, not an earlier one.
     func openWindow() async throws -> PairingInvitation {
+        let previous = events.all.compactMap { if case .pairingWindowOpened(let i) = $0 { i } else { nil } }.count
         server.openPairingWindow()
-        let invitation = await events.wait { if case .pairingWindowOpened(let i) = $0 { i } else { nil } }
+        let invitation = await events.wait(timeout: 10) { _ -> PairingInvitation? in
+            let opened = self.events.all.compactMap { if case .pairingWindowOpened(let i) = $0 { i } else { nil } }
+            return opened.count > previous ? opened.last : nil
+        }
         return try #require(invitation)
     }
 
@@ -55,12 +60,13 @@ final class BridgeServerTests {
     }
 
     /// Full pairing flow; returns the connected phone.
-    func pairedPhone(port: UInt16) async throws -> SimulatedPhone {
+    func pairedPhone(port: UInt16, identity: DeviceIdentity? = nil, name: String = "Test Phone") async throws -> SimulatedPhone {
+        let identity = identity ?? phoneIdentity
         let invitation = try await openWindow()
-        let phone = SimulatedPhone(identity: phoneIdentity)
-        phone.connect(port: port, pinning: invitation.fingerprint)
+        let phone = SimulatedPhone(identity: identity)
+        phone.connect(port: port, pinning: invitation.fingerprint, name: name)
         _ = await phone.received.wait { if case .hello = $0 { true } else { nil } }
-        phone.send(.pairRequest(proof: proof(invitation)))
+        phone.send(.pairRequest(proof: proof(invitation, phone: identity)))
         let ready = await phone.received.wait { $0 == .sessionReady ? true : nil }
         try #require(ready == true)
         return phone
@@ -79,7 +85,7 @@ final class BridgeServerTests {
         let text = await events.wait { if case .textReceived(let t, _) = $0 { t } else { nil } }
         #expect(text == "hello mac")
 
-        server.sendText("hello phone")
+        server.sendText("hello phone", to: phoneIdentity.fingerprint)
         #expect(await phone.received.wait { $0 == .text("hello phone") ? true : nil } == true)
     }
 
@@ -124,6 +130,54 @@ final class BridgeServerTests {
         #expect(BridgeServer.displaySafe("Pixel\u{202E}9\n") == "Pixel9")
         #expect(BridgeServer.displaySafe("\u{200B}\u{0007}") == "Android phone")
         #expect(BridgeServer.displaySafe("Saarukesh’s Pixel") == "Saarukesh’s Pixel")
+    }
+
+    @Test("Two phones stay connected together; messages reach only their target")
+    func twoPhones() async throws {
+        let port = try await startServer()
+        let second = try keychain.identity("Phone 2")
+        let phoneA = try await pairedPhone(port: port, name: "Phone A")
+        let phoneB = try await pairedPhone(port: port, identity: second, name: "Phone B")
+        #expect(try store.load().count == 2)
+
+        server.sendText("only A", to: phoneIdentity.fingerprint)
+        server.sendText("only B", to: second.fingerprint)
+        #expect(await phoneA.received.wait { $0 == .text("only A") ? true : nil } == true)
+        #expect(await phoneB.received.wait { $0 == .text("only B") ? true : nil } == true)
+        #expect(!phoneA.received.all.contains(.text("only B")))
+        #expect(!phoneB.received.all.contains(.text("only A")))
+        #expect(phoneA.closed.all.isEmpty) // the second phone did not replace the first
+    }
+
+    @Test("Forgetting one phone leaves the other connected")
+    func forgetOneOfTwo() async throws {
+        let port = try await startServer()
+        let second = try keychain.identity("Phone 2")
+        let phoneA = try await pairedPhone(port: port, name: "Phone A")
+        let phoneB = try await pairedPhone(port: port, identity: second, name: "Phone B")
+        server.forget(phoneIdentity.fingerprint)
+        #expect(await phoneA.closed.wait { $0 } != nil)
+        server.sendText("still here", to: second.fingerprint)
+        #expect(await phoneB.received.wait { $0 == .text("still here") ? true : nil } == true)
+        #expect(phoneB.closed.all.isEmpty)
+        #expect(try store.load().map(\.fingerprint) == [second.fingerprint])
+    }
+
+    @Test("An address that sends 3 wrong pairing proofs is refused for a while")
+    func perAddressThrottle() async throws {
+        let port = try await startServer()
+        let invitation = try await openWindow()
+        for _ in 0..<BridgeServer.maxFailedProofsPerAddress {
+            let attacker = SimulatedPhone(identity: phoneIdentity)
+            attacker.connect(port: port, pinning: invitation.fingerprint)
+            _ = await attacker.received.wait { if case .hello = $0 { true } else { nil } }
+            attacker.send(.pairRequest(proof: Data(repeating: 1, count: 32).base64URLEncoded))
+            #expect(await attacker.closed.wait { $0 } != nil)
+        }
+        let next = SimulatedPhone(identity: phoneIdentity)
+        next.connect(port: port, pinning: invitation.fingerprint)
+        let reason = await next.received.wait { if case .pairResult(false, let r) = $0 { r } else { nil } }
+        #expect(reason == "pairing_too_many_attempts")
     }
 
     @Test("An unpaired phone is refused when no pairing window is open")

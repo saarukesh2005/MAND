@@ -6,7 +6,8 @@ public enum Feature {
     public static let clipboard = "clipboard.v1"
     public static let device = "device.v1"
     public static let notifications = "notifications.v1"
-    public static let all: [String] = [files, clipboard, device, notifications]
+    public static let calls = "calls.v1"
+    public static let all: [String] = [files, clipboard, device, notifications, calls]
 }
 
 /// The `hello` body (protocol §3).
@@ -88,7 +89,12 @@ public enum Message: Equatable, Sendable {
     case notificationPosted(PhoneNotification)
     case notificationRemoved(key: String)
     case notificationDismiss(key: String)
+    case callState(CallState, caller: String?)
+    case callAction(CallAction)
     case unknown(type: String)
+
+    public enum CallState: String, Sendable { case ringing, active, idle }
+    public enum CallAction: String, Sendable { case answer, decline }
 
     public static let maxTextBytes = 16_384
     public static let maxNameBytes = 128
@@ -120,6 +126,8 @@ public enum Message: Equatable, Sendable {
         case .notificationPosted: "notification.posted"
         case .notificationRemoved: "notification.removed"
         case .notificationDismiss: "notification.dismiss"
+        case .callState: "call.state"
+        case .callAction: "call.action"
         case .unknown(let type): type
         }
     }
@@ -132,6 +140,7 @@ public enum Message: Equatable, Sendable {
         case .clipboardText: Feature.clipboard
         case .deviceStatus: Feature.device
         case .notificationPosted, .notificationRemoved, .notificationDismiss: Feature.notifications
+        case .callState, .callAction: Feature.calls
         default: nil
         }
     }

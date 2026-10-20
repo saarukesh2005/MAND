@@ -40,6 +40,20 @@ public final class MacNotifier {
         center.add(request)
     }
 
+    /// A general alert (e.g. an incoming call). `identifier` lets it be removed later.
+    public func show(title: String, body: String, identifier: String) {
+        guard authorization == .allowed, let center else { return }
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+        center.add(UNNotificationRequest(identifier: identifier, content: content, trigger: nil))
+    }
+
+    public func remove(identifier: String) {
+        center?.removeDeliveredNotifications(withIdentifiers: [identifier])
+    }
+
     public func remove(key: String) {
         center?.removeDeliveredNotifications(withIdentifiers: [Self.identifier(key)])
     }

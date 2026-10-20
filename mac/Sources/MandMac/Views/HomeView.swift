@@ -1,3 +1,4 @@
+import AppKit
 import MandCore
 import MandMacKit
 import SwiftUI
@@ -7,105 +8,180 @@ struct HomeView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                StatusCard()
+            VStack(alignment: .leading, spacing: Theme.Space.xl - 4) {
+                if let ringing = model.ringingPhone { CallBanner(phone: ringing) }
+                if model.phones.count > 1 { DeviceSwitcher() }
+                PhoneHero()
                 if model.isConnected {
-                    QuickActionsCard()
                     TestMessageCard()
-                } else if case .listening = model.serverStatus {
+                } else if case .listening = model.serverStatus, !model.devices.isEmpty {
                     TroubleshootingCard()
                 }
                 FeaturesGrid()
             }
-            .padding(24)
-            .frame(maxWidth: 820, alignment: .leading)
+            .padding(Theme.Space.xl)
+            .frame(maxWidth: 860, alignment: .leading)
+            .stateAnimation(model.phones.map(\.id))
         }
     }
 }
 
-/// Answers “Is my phone connected?” at a glance.
-struct StatusCard: View {
+/// The glanceable answer to “Is my phone connected, and what can I do?”
+struct PhoneHero: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
         Card {
-            HStack(alignment: .center, spacing: 18) {
-                ZStack {
-                    Circle().fill(tint.opacity(0.14)).frame(width: 64, height: 64)
-                    Image(systemName: symbol).font(.system(size: 28, weight: .medium)).foregroundStyle(tint)
-                }
-                .accessibilityHidden(true)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title).font(.title2.weight(.semibold))
-                    Text(subtitle).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                    if model.isConnected, let status = model.phoneStatus {
-                        Label("\(status.battery)%\(status.charging ? " · charging" : "")",
-                              systemImage: Self.batterySymbol(status))
-                            .font(.callout.weight(.medium))
-                            .accessibilityLabel("Phone battery \(status.battery) percent\(status.charging ? ", charging" : "")")
+            HStack(alignment: .center, spacing: Theme.Space.l + 2) {
+                DeviceAvatar(connected: model.isConnected, size: 64)
+                VStack(alignment: .leading, spacing: Theme.Space.xs) {
+                    HStack(spacing: Theme.Space.s) {
+                        StatusDot(connected: model.isConnected)
+                        Text(statusWord).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                            .textCase(.uppercase)
                     }
+                    Text(title).font(Theme.Font.hero).lineLimit(1)
+                    Text(subtitle).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     if let notice = model.pairingNotice {
                         Text(notice).font(.callout).foregroundStyle(.secondary).padding(.top, 2)
                     }
                 }
-                Spacer(minLength: 12)
+                Spacer(minLength: Theme.Space.m)
+                if let status = model.phoneStatus { BatteryRing(status: status) }
                 if !model.isConnected, case .listening = model.serverStatus {
-                    Button(model.devices.isEmpty ? "Pair a Phone" : "Pair Another Phone") { model.startPairing() }
+                    Button(model.devices.isEmpty ? "Pair a Phone" : "Pair Another") { model.startPairing() }
                         .buttonStyle(.borderedProminent)
+                        .tint(Theme.accent)
                         .controlSize(.large)
                 }
             }
+            if model.isConnected { QuickActions().padding(.top, Theme.Space.xs) }
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
     }
 
-    static func batterySymbol(_ status: AppModel.PhoneStatus) -> String {
-        if status.charging { return "battery.100percent.bolt" }
-        switch status.battery {
-        case ..<13: return "battery.0percent"
-        case ..<38: return "battery.25percent"
-        case ..<63: return "battery.50percent"
-        case ..<88: return "battery.75percent"
-        default: return "battery.100percent"
+    private var statusWord: String {
+        if model.isConnected { return "Connected" }
+        switch model.serverStatus {
+        case .starting: return "Starting"
+        case .failed: return "Needs attention"
+        case .listening: return model.devices.isEmpty ? "Not paired" : "Waiting"
         }
-    }
-
-    private var symbol: String {
-        if model.isConnected { return "iphone.radiowaves.left.and.right" }
-        if case .failed = model.serverStatus { return "exclamationmark.triangle" }
-        return "iphone"
-    }
-
-    private var tint: Color {
-        if model.isConnected { return .green }
-        if case .failed = model.serverStatus { return .orange }
-        return .secondary
     }
 
     private var title: String {
-        if let phone = model.connected { return "\(phone.name) is connected" }
+        if let phone = model.connected { return phone.name }
         switch model.serverStatus {
-        case .starting: return "Starting…"
+        case .starting: return "Getting ready…"
         case .failed: return "M’AND can’t accept connections"
-        case .listening: return model.devices.isEmpty ? "No phone paired yet" : "Phone not connected"
+        case .listening: return model.devices.isEmpty ? "Pair your Android phone" : "Phone not connected"
         }
     }
 
     private var subtitle: String {
         if model.isConnected {
-            return "Secure, encrypted connection over your local network\(model.connectedAddress.map { " (\($0))" } ?? "")."
+            var parts = ["Encrypted · local network"]
+            if let address = model.connectedAddress { parts.append(address) }
+            if let status = model.phoneStatus, status.isStale() {
+                parts.append("battery updated \(status.updated.formatted(.relative(presentation: .named)))")
+            }
+            if model.phones.count > 1 { parts.append("\(model.phones.count) phones connected") }
+            return parts.joined(separator: " · ")
         }
         switch model.serverStatus {
-        case .starting: return "Getting ready to connect."
-        case .failed(let reason): return "\(reason). Try quitting and reopening M’AND."
+        case .starting: return "Starting the secure connection service."
+        case .failed(let reason): return "\(reason). Quit and reopen M’AND to try again."
         case .listening:
-            if model.devices.isEmpty { return "Pair your Android phone to get started. It takes about a minute." }
+            if model.devices.isEmpty { return "Scan a QR code with M’AND on your phone. It takes about a minute." }
             if let last = model.lastDisconnect {
                 return "\(last.name) disconnected \(last.date.formatted(.relative(presentation: .named))): \(last.reason)."
             }
-            let names = model.devices.map(\.name).joined(separator: ", ")
-            return "Waiting for \(names). Open M’AND on the phone and make sure it’s on the same Wi-Fi."
+            return "Open M’AND on your phone and make sure both are on the same Wi-Fi."
+        }
+    }
+}
+
+/// Chips to choose which connected phone actions go to.
+struct DeviceSwitcher: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        HStack(spacing: Theme.Space.s) {
+            Text("Send to").font(.callout).foregroundStyle(.secondary)
+            ForEach(model.phones) { phone in
+                let isSelected = model.selected?.id == phone.id
+                Button {
+                    model.select(phone)
+                } label: {
+                    Label(phone.device.name, systemImage: "iphone.gen3")
+                        .padding(.horizontal, Theme.Space.m).padding(.vertical, 6)
+                        .background(isSelected ? Theme.accent.opacity(0.16) : Theme.surfaceRaised, in: Capsule())
+                        .overlay(Capsule().strokeBorder(isSelected ? Theme.accent : Theme.hairline))
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(isSelected ? .isSelected : [])
+            }
+        }
+    }
+}
+
+/// Prominent banner for a ringing phone. Answer/decline happen on the phone; audio stays there.
+struct CallBanner: View {
+    @Environment(AppModel.self) private var model
+    let phone: AppModel.ConnectedPhone
+
+    var body: some View {
+        HStack(spacing: Theme.Space.l) {
+            Image(systemName: "phone.arrow.down.left.fill")
+                .font(.title2).foregroundStyle(Theme.accent)
+                .symbolEffect(.pulse)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(phone.call?.caller ?? "Incoming call").font(Theme.Font.title)
+                Text("Ringing on \(phone.device.name) · the call audio stays on your phone")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button(role: .destructive) { model.respondToCall(on: phone, answer: false) } label: {
+                Label("Decline", systemImage: "phone.down.fill")
+            }
+            .controlSize(.large)
+            Button { model.respondToCall(on: phone, answer: true) } label: {
+                Label("Answer", systemImage: "phone.fill")
+            }
+            .buttonStyle(.borderedProminent).tint(Theme.accent).controlSize(.large)
+        }
+        .padding(Theme.Space.l)
+        .background(Theme.accent.opacity(0.10), in: RoundedRectangle(cornerRadius: Theme.Radius.large, style: .continuous))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Incoming call from \(phone.call?.caller ?? "unknown caller") on \(phone.device.name)")
+    }
+}
+
+struct QuickActions: View {
+    @Environment(AppModel.self) private var model
+    @Environment(UIState.self) private var ui
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Space.s) {
+            HStack(spacing: Theme.Space.s) {
+                Button { FilePicker.pick { model.sendFiles($0) } } label: {
+                    Label("Send Files…", systemImage: "square.and.arrow.up")
+                }
+                .disabled(!model.phoneSupports(Feature.files))
+                Button { model.sendClipboard() } label: {
+                    Label("Send Clipboard", systemImage: "doc.on.clipboard")
+                }
+                .disabled(!model.settings.clipboardEnabled || !model.phoneSupports(Feature.clipboard))
+                .help(model.settings.clipboardEnabled ? "Send the Mac clipboard to your phone" : "Turn on clipboard sharing in Settings")
+                Button { ui.section = .mirroring } label: {
+                    Label("Mirror Screen", systemImage: "rectangle.on.rectangle")
+                }
+            }
+            .controlSize(.large)
+            if let notice = model.clipboardNotice {
+                Text(notice).font(.callout).foregroundStyle(.secondary)
+            }
         }
     }
 }
@@ -116,20 +192,16 @@ struct TestMessageCard: View {
 
     var body: some View {
         @Bindable var ui = ui
-        Card(title: "Test message", subtitle: "Check the connection by sending a short note to your phone.") {
-            VStack(alignment: .leading, spacing: 10) {
-                if !model.chat.isEmpty {
-                    VStack(alignment: .leading, spacing: 6) {
-                        ForEach(model.chat.suffix(6)) { line in
-                            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                                Image(systemName: line.direction == .fromMac ? "laptopcomputer" : "iphone")
-                                    .foregroundStyle(.secondary)
-                                    .accessibilityLabel(line.direction == .fromMac ? "From this Mac" : "From phone")
-                                Text(line.text).textSelection(.enabled)
-                                Spacer()
-                                Text(line.date, style: .time).font(.caption).foregroundStyle(.tertiary)
-                            }
-                        }
+        Card(title: "Messages", subtitle: "Send a quick note to \(model.connected?.name ?? "your phone").") {
+            VStack(alignment: .leading, spacing: Theme.Space.s + 2) {
+                ForEach(model.chat.suffix(6)) { line in
+                    HStack(alignment: .firstTextBaseline, spacing: Theme.Space.s) {
+                        Image(systemName: line.direction == .fromMac ? "laptopcomputer" : "iphone.gen3")
+                            .foregroundStyle(.secondary)
+                            .accessibilityLabel(line.direction == .fromMac ? "From this Mac" : "From \(line.deviceName)")
+                        Text(line.text).textSelection(.enabled)
+                        Spacer()
+                        Text(line.date, style: .time).font(.caption).foregroundStyle(.tertiary)
                     }
                 }
                 HStack {
@@ -153,24 +225,19 @@ struct TroubleshootingCard: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        Card(title: "Can’t connect?", subtitle: nil) {
-            VStack(alignment: .leading, spacing: 8) {
+        Card(title: "Can’t connect?") {
+            VStack(alignment: .leading, spacing: Theme.Space.s) {
                 Tip("Both devices must be on the same Wi-Fi network (not a guest network).")
-                Tip("If macOS asked about Local Network access for M’AND, choose Allow. You can change it in System Settings → Privacy & Security → Local Network.")
-                Tip("On the phone, keep M’AND allowed to run in the background (Settings → Apps → M’AND → Battery → Unrestricted).")
-                Tip("Some routers block devices from seeing each other (“client isolation”). Try a home network or phone hotspot.")
-                if !model.isAdvertising {
-                    Tip("This Mac isn’t visible on the network yet, so the phone will use the last address it knew.")
-                }
+                Tip("If macOS asked about Local Network access for M’AND, choose Allow (System Settings → Privacy & Security → Local Network).")
+                Tip("On the phone, keep M’AND unrestricted in the background (Settings → Apps → M’AND → Battery).")
+                Tip("Some routers block devices from seeing each other (“client isolation”). Try a home network or a phone hotspot.")
                 if case .listening(let port) = model.serverStatus {
                     let addresses = LocalAddresses.privateIPv4()
                     Text(addresses.isEmpty
                          ? "This Mac isn’t on a local network right now."
                          : "This Mac’s address: \(addresses.joined(separator: " or ")) (port \(port)). Enter it on the phone if it can’t find the Mac.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                        .padding(.top, 4)
+                        .font(.callout).foregroundStyle(.secondary).textSelection(.enabled)
+                        .padding(.top, Theme.Space.xs)
                 }
             }
         }
@@ -179,6 +246,23 @@ struct TroubleshootingCard: View {
 
 struct FeaturesGrid: View {
     @Environment(AppModel.self) private var model
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Space.m) {
+            Text("Everything M’AND can do").font(Theme.Font.section).accessibilityAddTraits(.isHeader)
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: Theme.Space.m)], spacing: Theme.Space.m) {
+                FeatureTile(symbol: "doc.on.doc", title: "Files", status: status(Feature.files))
+                FeatureTile(symbol: "doc.on.clipboard", title: "Clipboard",
+                            status: model.settings.clipboardEnabled ? status(Feature.clipboard) : .off)
+                FeatureTile(symbol: "bell.badge", title: "Notifications", status: status(Feature.notifications))
+                FeatureTile(symbol: "phone", title: "Calls", status: status(Feature.calls))
+                FeatureTile(symbol: "battery.75percent", title: "Battery", status: status(Feature.device))
+                FeatureTile(symbol: "rectangle.on.rectangle", title: "Screen mirroring", status: mirroringStatus)
+                FeatureTile(symbol: "dot.radiowaves.left.and.right", title: "Quick Share (unofficial)",
+                            status: model.settings.quickShareEnabled ? .available : .off)
+            }
+        }
+    }
 
     private func status(_ feature: String) -> FeatureTile.Status {
         guard model.isConnected else { return .needsPhone }
@@ -190,49 +274,6 @@ struct FeaturesGrid: View {
         case .notInstalled: .setup("Needs scrcpy (free)")
         case .running: .available
         default: .ready("Uses a USB cable")
-        }
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("What you can do").font(.headline)
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 12)], spacing: 12) {
-                FeatureTile(symbol: "text.bubble", title: "Test message",
-                            status: model.isConnected ? .available : .needsPhone)
-                FeatureTile(symbol: "doc.on.doc", title: "Send files", status: status(Feature.files))
-                FeatureTile(symbol: "doc.on.clipboard", title: "Clipboard sharing",
-                            status: model.settings.clipboardEnabled ? status(Feature.clipboard) : .off)
-                FeatureTile(symbol: "bell.badge", title: "Phone notifications", status: status(Feature.notifications))
-                FeatureTile(symbol: "battery.75percent", title: "Battery level", status: status(Feature.device))
-                FeatureTile(symbol: "rectangle.on.rectangle", title: "Screen mirroring", status: mirroringStatus)
-            }
-        }
-    }
-}
-
-/// One-click actions available while the phone is connected.
-struct QuickActionsCard: View {
-    @Environment(AppModel.self) private var model
-    @Environment(UIState.self) private var ui
-
-    var body: some View {
-        Card(title: "Quick actions", subtitle: nil) {
-            HStack(spacing: 10) {
-                Button {
-                    FilePicker.pick { model.sendFiles($0) }
-                } label: { Label("Send Files…", systemImage: "square.and.arrow.up") }
-                    .disabled(!model.phoneSupports(Feature.files))
-                Button {
-                    model.sendClipboard()
-                } label: { Label("Send Clipboard", systemImage: "doc.on.clipboard") }
-                    .disabled(!model.settings.clipboardEnabled || !model.phoneSupports(Feature.clipboard))
-                Button {
-                    ui.section = .mirroring
-                } label: { Label("Mirror Screen", systemImage: "rectangle.on.rectangle") }
-            }
-            if let notice = model.clipboardNotice {
-                Text(notice).font(.callout).foregroundStyle(.secondary)
-            }
         }
     }
 }

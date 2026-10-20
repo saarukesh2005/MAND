@@ -50,6 +50,7 @@ struct EnvelopeCodecTests {
         .clipboardText("copied"), .deviceStatus(battery: 42, charging: true),
         .notificationPosted(PhoneNotification(key: "k", app: "com.x", appName: "X", title: "T", text: nil, time: 5)),
         .notificationRemoved(key: "k"), .notificationDismiss(key: "k"),
+        .callState(.ringing, caller: "Amma"), .callState(.idle, caller: nil), .callAction(.decline),
     ]
 
     @Test("Every message type round-trips", arguments: messages)

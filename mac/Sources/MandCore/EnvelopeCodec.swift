@@ -94,6 +94,12 @@ public enum EnvelopeCodec {
             return .notificationRemoved(key: try requiredString(body["key"], maxBytes: 256))
         case "notification.dismiss":
             return .notificationDismiss(key: try requiredString(body["key"], maxBytes: 256))
+        case "call.state":
+            guard let raw = body["state"] as? String, let state = Message.CallState(rawValue: raw) else { throw .malformed }
+            return .callState(state, caller: try optionalString(body["caller"], maxBytes: Message.maxNameBytes))
+        case "call.action":
+            guard let raw = body["action"] as? String, let action = Message.CallAction(rawValue: raw) else { throw .malformed }
+            return .callAction(action)
         default: return .unknown(type: type)
         }
     }
@@ -175,6 +181,9 @@ public enum EnvelopeCodec {
                 .merging(n.title.map { ["title": $0] } ?? [:]) { a, _ in a }
                 .merging(n.text.map { ["text": $0] } ?? [:]) { a, _ in a }
         case .notificationRemoved(let key), .notificationDismiss(let key): ["key": key]
+        case .callState(let state, let caller):
+            caller.map { ["state": state.rawValue, "caller": $0] } ?? ["state": state.rawValue]
+        case .callAction(let action): ["action": action.rawValue]
         }
     }
 

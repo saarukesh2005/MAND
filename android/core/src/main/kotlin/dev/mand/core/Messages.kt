@@ -8,7 +8,8 @@ object Feature {
     const val CLIPBOARD = "clipboard.v1"
     const val DEVICE = "device.v1"
     const val NOTIFICATIONS = "notifications.v1"
-    val ALL = listOf(FILES, CLIPBOARD, DEVICE, NOTIFICATIONS)
+    const val CALLS = "calls.v1"
+    val ALL = listOf(FILES, CLIPBOARD, DEVICE, NOTIFICATIONS, CALLS)
 }
 
 /** The `hello` body (protocol §3). */
@@ -57,7 +58,12 @@ sealed class Message(val type: String) {
     ) : Message("notification.posted")
     data class NotificationRemoved(val key: String) : Message("notification.removed")
     data class NotificationDismiss(val key: String) : Message("notification.dismiss")
+    data class CallStateUpdate(val state: CallState, val caller: String?) : Message("call.state")
+    data class CallActionRequest(val action: CallAction) : Message("call.action")
     data class Unknown(val unknownType: String) : Message(unknownType)
+
+    enum class CallState(val wire: String) { RINGING("ringing"), ACTIVE("active"), IDLE("idle") }
+    enum class CallAction(val wire: String) { ANSWER("answer"), DECLINE("decline") }
 
     companion object {
         const val MAX_TEXT_BYTES = 16_384

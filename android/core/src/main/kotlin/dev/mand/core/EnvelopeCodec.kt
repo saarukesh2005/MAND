@@ -89,6 +89,13 @@ object EnvelopeCodec {
         )
         "notification.removed" -> Message.NotificationRemoved(required(body["key"], 256))
         "notification.dismiss" -> Message.NotificationDismiss(required(body["key"], 256))
+        "call.state" -> Message.CallStateUpdate(
+            state = Message.CallState.entries.firstOrNull { it.wire == string(body["state"], 16) } ?: malformed(),
+            caller = optional(body["caller"], Message.MAX_NAME_BYTES),
+        )
+        "call.action" -> Message.CallActionRequest(
+            Message.CallAction.entries.firstOrNull { it.wire == string(body["action"], 16) } ?: malformed(),
+        )
         else -> Message.Unknown(type)
     }
 
@@ -181,6 +188,11 @@ object EnvelopeCodec {
             }
             is Message.NotificationRemoved -> put("key", message.key)
             is Message.NotificationDismiss -> put("key", message.key)
+            is Message.CallStateUpdate -> {
+                put("state", message.state.wire)
+                message.caller?.let { put("caller", it) }
+            }
+            is Message.CallActionRequest -> put("action", message.action.wire)
             Message.SessionReady, Message.Ping, is Message.Unknown -> Unit
         }
     }

@@ -434,6 +434,48 @@
       "json": "{\"v\":1,\"type\":\"notification.dismiss\",\"id\":\"f64\",\"ts\":1,\"body\":{\"key\":\"k\"}}",
       "expect": "ok",
       "type": "notification.dismiss"
+    },
+    {
+      "name": "call.state ringing with caller",
+      "json": "{\"v\":1,\"type\":\"call.state\",\"id\":\"c65\",\"ts\":1,\"body\":{\"state\":\"ringing\",\"caller\":\"Amma\"}}",
+      "expect": "ok",
+      "type": "call.state"
+    },
+    {
+      "name": "call.state idle",
+      "json": "{\"v\":1,\"type\":\"call.state\",\"id\":\"c66\",\"ts\":1,\"body\":{\"state\":\"idle\"}}",
+      "expect": "ok",
+      "type": "call.state"
+    },
+    {
+      "name": "call.state unknown state",
+      "json": "{\"v\":1,\"type\":\"call.state\",\"id\":\"c67\",\"ts\":1,\"body\":{\"state\":\"dialing\"}}",
+      "expect": "error",
+      "code": "malformed"
+    },
+    {
+      "name": "call.state caller too long",
+      "json": "{\"v\":1,\"type\":\"call.state\",\"id\":\"c68\",\"ts\":1,\"body\":{\"state\":\"ringing\",\"caller\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}}",
+      "expect": "error",
+      "code": "malformed"
+    },
+    {
+      "name": "call.action answer",
+      "json": "{\"v\":1,\"type\":\"call.action\",\"id\":\"c69\",\"ts\":1,\"body\":{\"action\":\"answer\"}}",
+      "expect": "ok",
+      "type": "call.action"
+    },
+    {
+      "name": "call.action decline",
+      "json": "{\"v\":1,\"type\":\"call.action\",\"id\":\"c70\",\"ts\":1,\"body\":{\"action\":\"decline\"}}",
+      "expect": "ok",
+      "type": "call.action"
+    },
+    {
+      "name": "call.action unknown",
+      "json": "{\"v\":1,\"type\":\"call.action\",\"id\":\"c71\",\"ts\":1,\"body\":{\"action\":\"mute\"}}",
+      "expect": "error",
+      "code": "malformed"
     }
   ],
   "versionNegotiation": [

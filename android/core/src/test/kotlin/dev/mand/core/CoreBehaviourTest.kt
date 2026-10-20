@@ -44,6 +44,8 @@ class CoreBehaviourTest {
             Message.FileCancel("t1", "user"), Message.ClipboardText("copied"), Message.DeviceStatus(42, true),
             Message.NotificationPosted("k", "com.x", "X", "T", null, 5),
             Message.NotificationRemoved("k"), Message.NotificationDismiss("k"),
+            Message.CallStateUpdate(Message.CallState.RINGING, "Amma"), Message.CallStateUpdate(Message.CallState.IDLE, null),
+            Message.CallActionRequest(Message.CallAction.DECLINE),
         )
         for (message in messages) {
             val envelope = Envelope(message, id = "id-1", timestampMillis = 42)
