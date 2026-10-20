@@ -1,0 +1,254 @@
+================================================================================
+  M’AND — PROJECT REPORT
+  Android ↔ Mac connectivity app
+  Report date: 20 October 2026
+  App version: 0.2.0
+================================================================================
+
+1. SUMMARY
+--------------------------------------------------------------------------------
+M’AND connects an Android phone and a Mac over your own Wi-Fi. There is no
+cloud, no account and no subscription, and every connection is encrypted.
+
+Status in one line:
+  All planned features are built. The Mac app is built, tested and running on
+  this Mac. The Android app is built (MAND-0.2.0.apk) but has NOT yet been run
+  on a real phone. That real-phone test is the one remaining step.
+
+Cost so far: ₹0. Only free and open-source tools were used.
+
+
+2. WHAT M’AND DOES
+--------------------------------------------------------------------------------
+Feature                          Mac app            Android app
+-------------------------------  -----------------  ---------------------------
+Secure pairing (QR + "Allow")    Built, tested      Built, not yet on a phone
+Connection status, auto-         Built, tested      Built, not yet on a phone
+reconnect, forget device
+Send files both ways             Built, tested      Built, not yet on a phone
+(resume, no overwrites)
+Clipboard text sharing           Built              Built, not yet on a phone
+Phone notifications on the Mac   Built              Built, not yet on a phone
+Phone battery level on the Mac   Built              Built, not yet on a phone
+Screen mirroring (scrcpy, USB)   Built              Needs USB debugging only
+Start at login / reconnect       Built              Built, not yet on a phone
+after phone restart
+
+How each feature works for you:
+  • Pairing:
+      - On the Mac, click "Pair a Phone".
+      - On the phone, scan the QR code.
+      - Back on the Mac, click "Allow".
+    Nothing is trusted until you click Allow.
+  • Files:
+      - Mac to phone: drag files onto the Mac app's Files screen.
+      - Phone to Mac: in any phone app, use Share → "Send to Mac".
+      - Where files go: on the Mac, Downloads/M’AND (you can change this in
+        Settings); on the phone, Downloads/M’AND.
+      - If the connection drops, the transfer continues where it stopped.
+      - Every file is checked for damage.
+      - Existing files are never overwritten: a second file with the same name
+        becomes "name (2)".
+  • Clipboard:
+      - Off by default on both sides.
+      - Passwords and items marked private are never sent.
+      - On the phone, sending always needs a tap (an Android rule): use the
+        button, the Quick Settings tile, or the Share sheet.
+  • Notifications:
+      - Off by default. You choose which phone apps are shared.
+      - Dismissing a notification on the Mac also dismisses it on the phone.
+  • Battery: the real level and charging state are shown on the Mac.
+  • Screen mirroring:
+      - Uses the free tool "scrcpy", which you install once, and a USB cable.
+      - View-only unless you switch on "allow control".
+
+What is NOT possible (platform limits, not missing work):
+  • Talking or listening to phone calls on the Mac. macOS can't act as a
+    phone's hands-free device, and Android doesn't give apps call audio.
+  • Reading the phone's clipboard automatically in the background. Android
+    blocks it.
+  • Full SMS and RCS access. Restricted by Android; new messages still appear
+    on the Mac as notifications.
+  • Seeing one-time codes in notifications. Android 15+ hides them from apps
+    like M’AND for safety.
+
+
+3. HOW IT IS BUILT (simple version)
+--------------------------------------------------------------------------------
+  • Mac app:     Swift + SwiftUI (Apple's own tools). Code name: MandMac.
+  • Android app: Kotlin + Jetpack Compose (Google's own tools). Code name:
+                 MandAndroid.
+  • Shared rulebook: one protocol document (protocol/PROTOCOL.md) plus a file
+                 of shared test cases. Both apps must pass the same cases, so
+                 they always agree.
+  • Connection:
+      - The Mac waits for connections and the phone connects to it, over
+        local Wi-Fi.
+      - Security is TLS 1.3, the same encryption banks use.
+      - Each device has its own secret key, which never leaves its secure
+        storage (Mac Keychain / Android Keystore).
+      - Each side only accepts the exact device it paired with.
+  • Size: about 9,000 lines of code (about 4,200 Swift and 3,400 Kotlin app
+    code, the rest tests), in 14 saved versions (git commits).
+
+
+4. SECURITY
+--------------------------------------------------------------------------------
+Protections in place:
+  • Encryption and identity:
+      - Every connection is encrypted (TLS 1.3, both devices prove who they
+        are).
+      - Pairing needs the QR code (5 minutes, single use) AND your click on
+        "Allow".
+      - A forgotten device is cut off immediately and can't come back without
+        pairing again.
+  • Files:
+      - File names from the other device are cleaned, so a file can never be
+        written outside the download folder.
+  • Abuse limits:
+      - Too many connections, oversized messages and malformed data are
+        rejected.
+  • Privacy:
+      - Nothing is sent to the internet.
+      - The activity log never records message contents.
+      - Sharing features (clipboard, notifications) start switched OFF.
+
+Independent AI reviews (3 reviews) and what they found:
+  1. Connection review: no critical issues.
+     One serious bug: pairing failed if you took more than about one second to
+     click Allow. FIXED, and a test now checks it.
+  2. Android code check: several crash and logic bugs. ALL FIXED.
+  3. Features review: ONE CRITICAL issue.
+     - The problem: on the Mac, a specially crafted file name from a paired
+       phone could have saved a file outside the download folder.
+     - The fix: done, and tests now try that attack and a symlink variant on
+       every run.
+     - Also: about 15 medium/low issues fixed the same day.
+
+Remaining known risks (see docs/SECURITY.md):
+  • Testing:
+      - The Android app hasn't been tested on a real phone yet.
+      - No professional (human) security audit has been done.
+  • Trust and limits:
+      - A paired phone is trusted, so only pair phones you own.
+      - Only one phone can be connected at a time.
+  • Signing:
+      - The Mac app uses a free local signature: fine for personal use, but
+        not for giving to other people.
+      - The Android app uses a development signature: fine for personal
+        installs.
+
+
+5. TESTING — WHAT WAS ACTUALLY VERIFIED
+--------------------------------------------------------------------------------
+Automated tests, all passing on 20 October 2026:
+  • Mac: 43 tests.
+      - Real encrypted connections.
+      - Pairing success and failure, wrong certificates, forgotten devices.
+      - File transfers: intact copies, damaged data detected, resuming,
+        no overwrites, attack file names rejected.
+  • Android protocol: 16 tests, including the same shared test cases as
+    the Mac.
+  • Cross-platform: 4 tests.
+      - The real Mac server against a test client that uses the same kind of
+        encryption as Android.
+      - It pairs, exchanges text, clipboard and battery, and reconnects.
+      - It refuses the wrong device.
+  • Android checker (lint): 0 errors.
+
+Manual checks on this Mac:
+  • The Mac app launches, waits for phones on network port 47821, uses
+    TLS 1.3, and is visible on the local network.
+  • No test keys are left behind in your keychain.
+
+NOT yet verified:
+  • Anything on a real Android phone.
+  • A real screen-mirroring session.
+  • The 12-step real-phone checklist in docs/TESTING.md.
+
+
+6. PROBLEMS MET DURING THE BUILD (and how they were solved)
+--------------------------------------------------------------------------------
+  • No Xcode on the Mac:
+      - The Mac app was built with Apple's free Command Line Tools instead.
+      - Two Apple tool quirks needed workarounds: a missing compiler plugin
+        for "@State", and a test plugin that loaded unreliably. Both solved,
+        and tests now pass every time.
+  • The apostrophe in the folder name "M’AND" broke the Android test tool:
+      - Android build output now goes to ~/.mand-build instead.
+  • The Mac app froze at launch:
+      - It was waiting on a macOS "access Downloads?" prompt. Fixed, so no
+        protected folder is touched at startup.
+  • Early test runs left 9 test keys in your login keychain:
+      - Removed, and the tests now use a throwaway keychain.
+  • A downloaded build-tool file didn't match its official fingerprint:
+      - It was rejected and a verified one generated instead.
+
+
+7. SETUP DONE ON THIS MAC
+--------------------------------------------------------------------------------
+  • REA (reverse-engineering tool):
+      - Installed and connected to Claude Code for all projects.
+      - Not needed for building M’AND. It could be used later to inspect our
+        own app builds.
+  • Signing certificate "M’AND Local Dev" in your login keychain:
+      - Free and local.
+      - Stops macOS asking for permissions again after every rebuild.
+  • Android build tools (no Android Studio needed), each downloaded from the
+    official source and checked against its published fingerprint:
+      - Java 21 (Eclipse Temurin)                       ~/.mand-tools
+      - Gradle 9.8.1                                     ~/.mand-tools
+      - Android SDK, adb, Android 16 & 17 platforms      ~/Library/Android/sdk
+    Total about 2 GB. To remove: delete those folders and ~/.mand-build.
+
+
+8. FILES YOU CAN USE NOW
+--------------------------------------------------------------------------------
+  • dist/M’AND.app         The Mac app (already running).
+  • dist/MAND-0.2.0.apk    The Android app to install on your phone.
+
+Useful commands (Claude Code can run these for you):
+  scripts/build-mac-app.sh        Rebuild the Mac app
+  scripts/install-android.sh      Build and install the phone app over USB
+  scripts/test-mac.sh             Run the Mac tests
+  scripts/interop-test.sh         Run the Mac ↔ Java connection test
+
+Project documents (in the docs folder):
+  README.md (project root)  What M’AND is and how to run it
+  ARCHITECTURE.md           How the apps are built and talk to each other
+  SECURITY.md               Protections, permissions, known risks
+  DEVELOPMENT.md            Setup and phone installation steps
+  ROADMAP.md                Milestones and progress
+  TESTING.md                Test results and the real-phone checklist
+  DECISIONS.md              21 key decisions and why they were made
+  REFERENCES.md             Related open-source projects and licence rules
+  protocol/PROTOCOL.md      The message rulebook both apps follow
+
+
+9. MILESTONES
+--------------------------------------------------------------------------------
+  M0  Environment audit                      Done
+  M1  Secure connection                      Built; Mac tested; phone pending
+  M2  File transfer                          Built; Mac tested; phone pending
+  M3  Clipboard                              Built; phone pending
+  M4  Notifications + battery                Built; phone pending
+  M5  Screen mirroring                       Built; needs scrcpy + USB to try
+  M6  Reliability and release preparation    Mostly done; see below
+
+
+10. NEXT STEPS
+--------------------------------------------------------------------------------
+  1. Install MAND-0.2.0.apk on your phone, pair it, and go through the
+     real-phone checklist (docs/TESTING.md). Report anything odd. Expect a
+     short round of fixes, because this is the app's first run on a phone.
+  2. Optional: install scrcpy to try screen mirroring.
+  3. Later:
+      - Support for Android 17's new local-network permission.
+      - An accessibility check.
+      - Support for more than one phone.
+      - Proper Apple/Google signing if you ever share M’AND with others.
+        Apple charges $99/year; Google charges a one-time $25.
+
+================================================================================
+  End of report
+================================================================================
