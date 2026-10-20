@@ -39,7 +39,6 @@ public final class FileTransferService: @unchecked Sendable {
 
     public static let windowChunks: Int64 = 8
     public static let maxConcurrentIncoming = 4
-    static let partialFolder = ".mand-partial"
     static let progressInterval: TimeInterval = 0.2
     static let freeSpaceMargin: Int64 = 200 * 1_048_576
 
@@ -48,6 +47,8 @@ public final class FileTransferService: @unchecked Sendable {
     private let queue = DispatchQueue(label: "dev.mand.mac.files")
     private let sendMessage: Sender
     private let destination: @Sendable () -> URL
+    /// Half-received files live here (not in the visible download folder) until verified.
+    private let partialFolder: URL
     private let onChange: @Sendable ([Item]) -> Void
 
     private var items: [Item] = []
@@ -57,9 +58,12 @@ public final class FileTransferService: @unchecked Sendable {
     private var lastPublish = Date.distantPast
     private var publishScheduled = false
 
-    public init(destination: @escaping @Sendable () -> URL, send: @escaping Sender,
+    public init(destination: @escaping @Sendable () -> URL,
+                partialFolder: URL = FileTransferService.defaultPartialFolder,
+                send: @escaping Sender,
                 onChange: @escaping @Sendable ([Item]) -> Void) {
         self.destination = destination
+        self.partialFolder = partialFolder
         self.sendMessage = send
         self.onChange = onChange
     }
@@ -126,7 +130,7 @@ public final class FileTransferService: @unchecked Sendable {
     /// Deletes leftover partial downloads older than `maxAge` (default 7 days).
     public func cleanUpPartials(maxAge: TimeInterval = 7 * 86_400) {
         queue.async {
-            let folder = self.destination().appendingPathComponent(Self.partialFolder, isDirectory: true)
+            let folder = self.partialFolder
             let files = (try? FileManager.default.contentsOfDirectory(
                 at: folder, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
             for file in files {
@@ -182,7 +186,7 @@ public final class FileTransferService: @unchecked Sendable {
         let root = destination()
         var folder = root
         for component in components.dropLast() { folder.appendPathComponent(component, isDirectory: true) }
-        let partFolder = root.appendingPathComponent(Self.partialFolder, isDirectory: true)
+        let partFolder = partialFolder
         do {
             try fm.createDirectory(at: folder, withIntermediateDirectories: true)
             try fm.createDirectory(at: partFolder, withIntermediateDirectories: true)
@@ -533,6 +537,12 @@ public final class FileTransferService: @unchecked Sendable {
             }
         }
         return result
+    }
+
+    /// ~/Library/Application Support/M’AND/Partial — not a privacy-protected folder.
+    public static var defaultPartialFolder: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("M’AND/Partial", isDirectory: true)
     }
 
     static func fileSize(_ url: URL) -> Int64? {

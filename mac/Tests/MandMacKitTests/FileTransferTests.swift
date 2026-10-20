@@ -17,10 +17,11 @@ final class Loopback: @unchecked Sendable {
     let receiverItems = Recorder<[FileTransferService.Item]>()
 
     init(senderFolder: URL, receiverFolder: URL) {
-        sender = FileTransferService(destination: { senderFolder }, send: { [unowned self] message, done in
+        let partials = receiverFolder.deletingLastPathComponent().appendingPathComponent("partials")
+        sender = FileTransferService(destination: { senderFolder }, partialFolder: partials.appendingPathComponent("s"), send: { [unowned self] message, done in
             self.deliver(message, to: { self.receiver }, done: done)
         }, onChange: { [unowned self] in self.senderItems.append($0) })
-        receiver = FileTransferService(destination: { receiverFolder }, send: { [unowned self] message, done in
+        receiver = FileTransferService(destination: { receiverFolder }, partialFolder: partials.appendingPathComponent("r"), send: { [unowned self] message, done in
             self.deliver(message, to: { self.sender }, done: done)
         }, onChange: { [unowned self] in self.receiverItems.append($0) })
         sender.connectionChanged(connected: true)

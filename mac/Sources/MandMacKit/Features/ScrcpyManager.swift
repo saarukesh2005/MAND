@@ -25,11 +25,12 @@ public final class ScrcpyManager {
 
     public static let downloadPage = URL(string: "https://github.com/Genymobile/scrcpy/releases/latest")!
 
-    /// Where scrcpy is usually found: custom choice, Homebrew, or an unzipped official release.
+    /// Where scrcpy is usually found: Homebrew, or an official release unzipped into an Applications folder.
+    /// Privacy-protected folders (Downloads, Documents, Desktop) are never scanned automatically: that
+    /// would make macOS show an access prompt at launch. Use "Choose scrcpy…" for other locations.
     nonisolated static func candidates(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> [String] {
         var paths = ["/opt/homebrew/bin/scrcpy", "/usr/local/bin/scrcpy"]
-        for folder in [home.appendingPathComponent("Applications"), home, home.appendingPathComponent("Downloads"),
-                       URL(fileURLWithPath: "/Applications")] {
+        for folder in [home.appendingPathComponent("Applications"), URL(fileURLWithPath: "/Applications")] {
             let entries = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
             for entry in entries.sorted().reversed() where entry.lowercased().hasPrefix("scrcpy") {
                 paths.append(folder.appendingPathComponent(entry).appendingPathComponent("scrcpy").path)

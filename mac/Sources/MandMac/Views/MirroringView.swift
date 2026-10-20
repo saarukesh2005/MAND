@@ -84,7 +84,7 @@ private struct SetupCard: View {
     var body: some View {
         Card(title: "One-time setup", subtitle: nil) {
             VStack(alignment: .leading, spacing: 8) {
-                Tip("Download scrcpy for macOS (the “macos-aarch64” file) and unzip it into your Downloads or Applications folder.")
+                Tip("Download scrcpy for macOS (the “macos-aarch64” file) and unzip it into your Applications folder — or anywhere, then click “Choose scrcpy…”.")
                 Tip("The first time, macOS may block it: open System Settings → Privacy & Security and click “Open Anyway”.")
                 Tip("On the phone: Settings → About phone → tap Build number 7 times, then Developer options → turn on USB debugging.")
                 Tip("Connect the phone by USB and tap “Allow” when it asks about USB debugging.")
