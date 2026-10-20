@@ -37,6 +37,20 @@ android {
     buildFeatures {
         compose = true
     }
+
+    testOptions {
+        // Compose UI tests run on the JVM with Robolectric (no emulator needed).
+        unitTests.isIncludeAndroidResources = true
+        unitTests.all { test ->
+            // Robolectric reaches into JDK internals; JDK 17+ requires these to be opened explicitly.
+            test.jvmArgs(
+                "--add-opens=java.base/java.io=ALL-UNNAMED",
+                "--add-opens=java.base/java.lang=ALL-UNNAMED",
+                "--add-opens=java.base/java.util=ALL-UNNAMED",
+                "--add-exports=java.base/jdk.internal.access=ALL-UNNAMED",
+            )
+        }
+    }
 }
 
 dependencies {
@@ -51,4 +65,11 @@ dependencies {
     implementation(libs.androidx.lifecycle.service)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.zxing.android.embedded)
+
+    testImplementation(libs.junit4)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
+    testImplementation(platform(libs.androidx.compose.bom))
+    testImplementation(libs.androidx.compose.ui.test.junit4)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
 }

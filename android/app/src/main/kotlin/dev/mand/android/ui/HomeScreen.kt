@@ -225,7 +225,7 @@ private fun describe(state: LinkState): StatusLook {
         is LinkState.Offline -> StatusLook(Icons.Outlined.CloudOff, muted, "Offline", "No network",
             "M’AND will reconnect to ${state.macName} as soon as you’re back on Wi-Fi.")
         is LinkState.NeedsPermission -> StatusLook(Icons.Outlined.WifiFind, warn, "Permission needed",
-            "Allow Nearby devices", "Android needs your OK before M’AND can reach ${state.macName} on your Wi-Fi.")
+            "One permission needed", "Android needs your OK before M’AND can reach ${state.macName} on your Wi-Fi.")
         is LinkState.Pairing -> when (state.step) {
             LinkState.Pairing.Step.CONNECTING -> StatusLook(Icons.Outlined.Sync, muted, "Pairing", "Connecting…",
                 "Reaching ${state.macName.ifBlank { "your Mac" }} securely.", busy = true)
