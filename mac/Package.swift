@@ -24,6 +24,8 @@ let package = Package(
         ),
         // The SwiftUI app itself (thin layer over MandMacKit).
         .executableTarget(name: "MandMac", dependencies: ["MandMacKit"]),
+        // Test-only helper for scripts/interop-test.sh (Swift server ↔ Java/Kotlin client). Not shipped.
+        .executableTarget(name: "MandInteropServer", dependencies: ["MandMacKit", "MandCore"]),
         .testTarget(name: "MandCoreTests", dependencies: ["MandCore"]),
         .testTarget(name: "MandMacKitTests", dependencies: ["MandMacKit", "MandCore"]),
     ]

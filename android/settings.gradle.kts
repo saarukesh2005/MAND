@@ -14,4 +14,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "MandAndroid"
-include(":core", ":app")
+include(":core", ":app", ":interop")
