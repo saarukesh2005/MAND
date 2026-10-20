@@ -12,7 +12,9 @@ import dev.mand.android.identity.KeystoreIdentity
 import dev.mand.core.Base64Url
 import dev.mand.core.ConnectionTiming
 import dev.mand.core.Envelope
+import dev.mand.android.system.LocalNetworkAccess
 import dev.mand.core.Feature
+import dev.mand.core.ReconnectPolicy
 import dev.mand.core.Hello
 import dev.mand.core.Message
 import dev.mand.core.PairingInvitation
@@ -69,14 +71,21 @@ class BridgeClient private constructor(private val context: Context) {
         get() = (Settings.Global.getString(context.contentResolver, Settings.Global.DEVICE_NAME) ?: Build.MODEL)
             .truncatedToUtf8Bytes(Message.MAX_NAME_BYTES)
 
+    private val connectivity = context.getSystemService(ConnectivityManager::class.java)
+
     init {
         scope.launch { refreshIdleState() }
-        context.getSystemService(ConnectivityManager::class.java).registerDefaultNetworkCallback(
+        connectivity.registerDefaultNetworkCallback(
             object : ConnectivityManager.NetworkCallback() {
                 // A network change is the best moment to retry immediately instead of waiting out the backoff.
                 override fun onAvailable(network: Network) { kick.trySend(Unit) }
             },
         )
+    }
+
+    /** Retry now (e.g. after the user granted a permission or tapped "Try again"). */
+    fun retryNow() {
+        kick.trySend(Unit)
     }
 
     // ---- Public API ----
@@ -217,6 +226,9 @@ class BridgeClient private constructor(private val context: Context) {
     }
 
     private suspend fun runPairing(invitation: PairingInvitation): PairingOutcome {
+        if (!LocalNetworkAccess.isGranted(context)) {
+            return PairingOutcome.Failed("Allow M’AND to find devices on your local network (Nearby devices), then scan again.")
+        }
         var lastError = "Couldn’t reach the Mac. Make sure both are on the same Wi-Fi."
         for (host in invitation.hosts) {
             val opened = try {
@@ -292,17 +304,29 @@ class BridgeClient private constructor(private val context: Context) {
                 refreshIdleState()
                 return
             }
-            _state.value = LinkState.Searching(mac.name, attempt, lastError)
+            // Without permission (Android 17+) or any network, wait quietly for a change instead of retrying.
+            if (!LocalNetworkAccess.isGranted(context)) {
+                _state.value = LinkState.NeedsPermission(mac.name)
+                kick.receive()
+                continue
+            }
+            if (connectivity.activeNetwork == null) {
+                _state.value = LinkState.Offline(mac.name)
+                kick.receive()
+                attempt = 0
+                continue
+            }
+            _state.value = LinkState.Searching(mac.name, attempt, lastError, ReconnectPolicy.isResting(attempt))
             val connectedOk = tryConnect(mac) { error -> lastError = error }
             if (store.current() == null) return
             // After a session ends, start the backoff again (and keep showing why it ended).
             if (connectedOk) attempt = 0
-            _state.value = LinkState.Searching(mac.name, attempt, lastError)
-            // Wait for the backoff delay, or retry at once when the network changes.
+            _state.value = LinkState.Searching(mac.name, attempt, lastError, ReconnectPolicy.isResting(attempt))
+            // Wait (quick at first, then every 5 minutes), or retry at once when the network changes.
             @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
             select<Unit> {
                 kick.onReceive { }
-                onTimeout(ConnectionTiming.backoffMs(attempt)) { }
+                onTimeout(ReconnectPolicy.delayMs(attempt)) { }
             }
             attempt += 1
         }
@@ -393,10 +417,11 @@ class BridgeClient private constructor(private val context: Context) {
                     is Message.Error -> Log.i(TAG, "Mac reported error ${message.code}")
                     is Message.FileOffer, is Message.FileAccept, is Message.FileReject, is Message.FileChunk,
                     is Message.FileAck, is Message.FileDone, is Message.FileResult, is Message.FileCancel,
-                    is Message.ClipboardText, is Message.NotificationDismiss -> {
+                    is Message.ClipboardText, is Message.NotificationDismiss, is Message.CallActionRequest -> {
                         val feature = when (message) {
                             is Message.ClipboardText -> Feature.CLIPBOARD
                             is Message.NotificationDismiss -> Feature.NOTIFICATIONS
+                            is Message.CallActionRequest -> Feature.CALLS
                             else -> Feature.FILES
                         }
                         // Only features the Mac announced in its hello are accepted.
@@ -491,7 +516,7 @@ class BridgeClient private constructor(private val context: Context) {
 
     companion object {
         private const val TAG = "MandBridge"
-        const val APP_VERSION = "0.2.0"
+        const val APP_VERSION = "0.3.0"
         private const val HANDSHAKE_TIMEOUT_MS = 10_000L
         private const val APPROVAL_TIMEOUT_MS = 5L * 60 * 1000
         private const val MAX_CHAT_LINES = 100

@@ -16,6 +16,8 @@ data class FeaturePrefs(
     val clipboardEnabled: Boolean = false,
     val notificationsEnabled: Boolean = false,
     val allowedApps: Set<String> = emptySet(),
+    val callsEnabled: Boolean = false,
+    val onboardingDone: Boolean = false,
 )
 
 private val Context.featureStore by preferencesDataStore(name = "mand_features")
@@ -25,6 +27,8 @@ class FeatureSettings(private val context: Context) {
         val CLIPBOARD = booleanPreferencesKey("clipboard_enabled")
         val NOTIFICATIONS = booleanPreferencesKey("notifications_enabled")
         val ALLOWED_APPS = stringSetPreferencesKey("notification_apps")
+        val CALLS = booleanPreferencesKey("calls_enabled")
+        val ONBOARDING_DONE = booleanPreferencesKey("onboarding_done")
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -41,6 +45,8 @@ class FeatureSettings(private val context: Context) {
                     clipboardEnabled = p[Keys.CLIPBOARD] ?: false,
                     notificationsEnabled = p[Keys.NOTIFICATIONS] ?: false,
                     allowedApps = p[Keys.ALLOWED_APPS] ?: emptySet(),
+                    callsEnabled = p[Keys.CALLS] ?: false,
+                    onboardingDone = p[Keys.ONBOARDING_DONE] ?: false,
                 )
                 loaded.complete(Unit) // only after the value above is visible
             }
@@ -51,6 +57,10 @@ class FeatureSettings(private val context: Context) {
     suspend fun awaitLoaded() = loaded.await()
 
     fun setClipboard(enabled: Boolean) = edit { it[Keys.CLIPBOARD] = enabled }
+
+    fun setCalls(enabled: Boolean) = edit { it[Keys.CALLS] = enabled }
+
+    fun setOnboardingDone() = edit { it[Keys.ONBOARDING_DONE] = true }
 
     fun setNotifications(enabled: Boolean) = edit { it[Keys.NOTIFICATIONS] = enabled }
 

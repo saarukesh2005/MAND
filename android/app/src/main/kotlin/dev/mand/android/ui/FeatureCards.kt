@@ -44,6 +44,7 @@ fun FeatureCards(app: MandApp, connected: Boolean, notificationAccess: Boolean, 
     FilesCard(app, connected, actions)
     ClipboardCard(app, connected)
     NotificationsCard(app, notificationAccess, actions)
+    CallsCard(app, actions)
     Text(
         "Battery level is shared with your Mac automatically while connected.",
         style = MaterialTheme.typography.bodySmall,
@@ -54,7 +55,41 @@ fun FeatureCards(app: MandApp, connected: Boolean, notificationAccess: Boolean, 
 class FeatureActions(
     val pickFiles: () -> Unit,
     val openNotificationAccess: () -> Unit,
+    /** Asks for the phone permissions Calls on Mac needs; the callback says whether they were granted. */
+    val requestCallPermissions: (onResult: (Boolean) -> Unit) -> Unit,
 )
+
+@Composable
+private fun CallsCard(app: MandApp, actions: FeatureActions) {
+    val prefs by app.settings.prefs.collectAsStateWithLifecycle()
+    val result by app.calls.lastResult.collectAsStateWithLifecycle()
+    var denied by rememberSaveable { mutableStateOf(false) }
+    SectionCard(
+        title = "Calls on Mac",
+        subtitle = "See who’s calling on your Mac and answer or decline from there. The call itself (audio) stays on your phone.",
+    ) {
+        ToggleRow("Answer and decline calls from my Mac", prefs.callsEnabled) { on ->
+            if (!on) {
+                app.settings.setCalls(false)
+                app.calls.refresh()
+            } else {
+                actions.requestCallPermissions { granted ->
+                    denied = !granted
+                    if (granted) app.settings.setCalls(true)
+                }
+            }
+        }
+        if (denied) {
+            Text("M’AND needs the Phone permission for this. You can allow it in Settings → Apps → M’AND → Permissions.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+        }
+        if (prefs.callsEnabled) {
+            Text("Tip: with Notification access on, your Mac also shows the caller’s name.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        result?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
+    }
+}
 
 @Composable
 private fun FilesCard(app: MandApp, connected: Boolean, actions: FeatureActions) {
@@ -204,16 +239,5 @@ private fun ToggleRow(label: String, checked: Boolean, onChange: (Boolean) -> Un
 }
 
 @Composable
-private fun SectionCard(title: String, subtitle: String, content: @Composable () -> Unit) {
-    androidx.compose.material3.Surface(
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            content()
-        }
-    }
-}
+private fun SectionCard(title: String, subtitle: String, content: @Composable () -> Unit) =
+    MandCard(title = title, subtitle = subtitle, content = content)

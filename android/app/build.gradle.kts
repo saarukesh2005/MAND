@@ -12,9 +12,9 @@ android {
         // The founder's phone runs Android 14+; targeting 36 (Android 16) avoids Android 17's new
         // ACCESS_LOCAL_NETWORK runtime permission until onboarding for it is built (see docs/DECISIONS.md).
         minSdk = 34
-        targetSdk = 36
-        versionCode = 2
-        versionName = "0.2.0"
+        targetSdk = 37
+        versionCode = 3
+        versionName = "0.3.0"
     }
 
     buildTypes {

@@ -101,3 +101,15 @@ class CoreBehaviourTest {
         assertNull(Fingerprint.fromHex("B3EA"))
     }
 }
+
+class ReconnectPolicyTest {
+    @Test
+    fun `quick retries first, then a 5 minute resting pace`() {
+        assertEquals(1_000L, ReconnectPolicy.delayMs(0))
+        assertEquals(30_000L, ReconnectPolicy.delayMs(9))
+        assertEquals(300_000L, ReconnectPolicy.delayMs(10))
+        assertEquals(300_000L, ReconnectPolicy.delayMs(500))
+        assertFalse(ReconnectPolicy.isResting(9))
+        assertTrue(ReconnectPolicy.isResting(10))
+    }
+}

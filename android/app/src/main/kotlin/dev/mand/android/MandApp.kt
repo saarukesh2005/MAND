@@ -1,7 +1,9 @@
 package dev.mand.android
 
 import android.app.Application
+import dev.mand.android.calls.CallBridge
 import dev.mand.android.clipboard.ClipboardBridge
+import kotlinx.coroutines.launch
 import dev.mand.android.data.FeatureSettings
 import dev.mand.android.device.BatteryReporter
 import dev.mand.android.files.FileTransferManager
@@ -20,6 +22,8 @@ class MandApp : Application() {
         private set
     lateinit var notifications: NotificationBridge
         private set
+    lateinit var calls: CallBridge
+        private set
 
     override fun onCreate() {
         super.onCreate()
@@ -28,8 +32,14 @@ class MandApp : Application() {
         files = FileTransferManager(this, client)
         clipboard = ClipboardBridge(this, client, settings)
         notifications = NotificationBridge(this)
+        calls = CallBridge(this, client, settings)
         val battery = BatteryReporter(this, client)
-        listOf(files, clipboard, notifications, battery).forEach(client::register)
+        listOf(files, clipboard, notifications, battery, calls).forEach(client::register)
         battery.start()
+        // Start watching call state once saved settings are loaded (only if the user turned it on).
+        kotlinx.coroutines.MainScope().launch {
+            settings.awaitLoaded()
+            calls.refresh()
+        }
     }
 }

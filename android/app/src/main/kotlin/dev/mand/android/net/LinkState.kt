@@ -10,8 +10,22 @@ sealed interface LinkState {
         enum class Step { CONNECTING, WAITING_FOR_APPROVAL }
     }
 
-    /** Paired, trying to reach the Mac. [lastError] is the most recent failure, if any. */
-    data class Searching(val macName: String, val attempt: Int, val lastError: String?) : LinkState
+    /**
+     * Paired, trying to reach the Mac. [lastError] is the most recent failure, if any.
+     * [resting] means many rounds failed, so it now retries only every few minutes (or on a network change).
+     */
+    data class Searching(
+        val macName: String,
+        val attempt: Int,
+        val lastError: String?,
+        val resting: Boolean = false,
+    ) : LinkState
+
+    /** Paired, but the phone has no network at all; waits (without retrying) until one appears. */
+    data class Offline(val macName: String) : LinkState
+
+    /** Android 17+: the user hasn't allowed local-network access, so M’AND can't reach the Mac. */
+    data class NeedsPermission(val macName: String) : LinkState
 
     data class Connected(val macName: String, val host: String, val sinceMs: Long) : LinkState
 

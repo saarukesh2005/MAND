@@ -1,6 +1,7 @@
 package dev.mand.android.ui
 
 import android.Manifest
+import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -14,18 +15,20 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import dev.mand.android.MandApp
+import dev.mand.android.calls.CallBridge
 import dev.mand.android.data.PairedMacStore
 import dev.mand.android.identity.KeystoreIdentity
-import dev.mand.android.net.BridgeClient
 import dev.mand.android.net.LinkState
+import dev.mand.android.notify.NotificationMirrorService
 import dev.mand.android.service.BridgeService
+import dev.mand.android.system.LocalNetworkAccess
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -35,14 +38,30 @@ class MainActivity : ComponentActivity() {
     private val client get() = app.client
     private var permissions by mutableStateOf(PermissionStatus(notifications = false, batteryUnrestricted = false))
     private var notificationAccess by mutableStateOf(false)
-
-    private val filePicker = registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
-        if (uris.isNotEmpty()) lifecycleScope.launch { app.files.importAndSend(uris) }
-    }
     private var phoneCode by mutableStateOf<String?>(null)
+    private var pendingCallResult: ((Boolean) -> Unit)? = null
 
     private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
         refreshPermissions()
+    }
+
+    private val localNetworkPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            client.retryNow()
+        } else if (!shouldShowRequestPermissionRationale(LocalNetworkAccess.PERMISSION)) {
+            openAppSettings() // the user chose "Don't ask again"; the only way back is Settings
+        }
+    }
+
+    private val callPermissions = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
+        val granted = CallBridge.PERMISSIONS.all { result[it] == true || checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }
+        pendingCallResult?.invoke(granted)
+        pendingCallResult = null
+        app.calls.refresh()
+    }
+
+    private val filePicker = registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        if (uris.isNotEmpty()) lifecycleScope.launch { app.files.importAndSend(uris) }
     }
 
     private val scanner = registerForActivityResult(ScanContract()) { result ->
@@ -61,29 +80,45 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             MandTheme {
-                HomeScreen(
-                    client = client,
-                    phoneSecurityCode = phoneCode,
-                    permissions = permissions,
-                    actions = HomeActions(
-                        scanQr = ::launchScanner,
-                        requestNotifications = { notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS) },
-                        requestBatteryExemption = ::requestBatteryExemption,
-                        resume = { BridgeService.start(this) },
-                        pause = { BridgeService.stop(this) },
-                    ),
-                    features = { connected ->
-                        FeatureCards(
-                            app = app,
-                            connected = connected,
-                            notificationAccess = notificationAccess,
-                            actions = FeatureActions(
-                                pickFiles = { filePicker.launch(arrayOf("*/*")) },
-                                openNotificationAccess = ::openNotificationAccess,
-                            ),
-                        )
-                    },
-                )
+                val prefs by app.settings.prefs.collectAsStateWithLifecycle()
+                val state by client.state.collectAsStateWithLifecycle()
+                if (!prefs.onboardingDone && state is LinkState.NotPaired) {
+                    OnboardingScreen(
+                        needsLocalNetwork = LocalNetworkAccess.isRequired && !LocalNetworkAccess.isGranted(this),
+                        requestLocalNetwork = ::requestLocalNetwork,
+                        onFinish = { pairNow ->
+                            app.settings.setOnboardingDone()
+                            if (pairNow) launchScanner()
+                        },
+                    )
+                } else {
+                    HomeScreen(
+                        client = client,
+                        phoneSecurityCode = phoneCode,
+                        permissions = permissions,
+                        actions = HomeActions(
+                            scanQr = ::launchScanner,
+                            requestNotifications = { notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS) },
+                            requestBatteryExemption = ::requestBatteryExemption,
+                            requestLocalNetwork = ::requestLocalNetwork,
+                            resume = { BridgeService.start(this) },
+                            pause = { BridgeService.stop(this) },
+                            retry = client::retryNow,
+                        ),
+                        features = { connected ->
+                            FeatureCards(
+                                app = app,
+                                connected = connected,
+                                notificationAccess = notificationAccess,
+                                actions = FeatureActions(
+                                    pickFiles = { filePicker.launch(arrayOf("*/*")) },
+                                    openNotificationAccess = ::openNotificationAccess,
+                                    requestCallPermissions = ::requestCallPermissions,
+                                ),
+                            )
+                        },
+                    )
+                }
             }
         }
 
@@ -96,7 +131,9 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 client.state.collect { state ->
-                    if (state is LinkState.Searching || state is LinkState.Connected) BridgeService.start(this@MainActivity)
+                    if (state is LinkState.Searching || state is LinkState.Connected || state is LinkState.Offline) {
+                        BridgeService.start(this@MainActivity)
+                    }
                 }
             }
         }
@@ -105,9 +142,16 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         refreshPermissions()
+        // Coming back from Settings after granting something: try again straight away.
+        if (LocalNetworkAccess.isGranted(this)) client.retryNow()
+        app.calls.refresh()
     }
 
     private fun launchScanner() {
+        if (!LocalNetworkAccess.isGranted(this)) {
+            requestLocalNetwork()
+            return
+        }
         scanner.launch(
             ScanOptions()
                 .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
@@ -117,39 +161,42 @@ class MainActivity : ComponentActivity() {
         )
     }
 
+    private fun requestLocalNetwork() {
+        if (LocalNetworkAccess.isRequired) localNetworkPermission.launch(LocalNetworkAccess.PERMISSION)
+    }
+
+    private fun requestCallPermissions(onResult: (Boolean) -> Unit) {
+        if (app.calls.hasPermissions()) {
+            onResult(true)
+            app.calls.refresh()
+            return
+        }
+        pendingCallResult = onResult
+        callPermissions.launch(CallBridge.PERMISSIONS)
+    }
+
     /** Opens the system dialog; the user decides. Needed so Android doesn't cut the link in the background. */
     private fun requestBatteryExemption() {
-        startActivity(
-            Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName")),
-        )
+        startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName")))
+    }
+
+    private fun openAppSettings() {
+        startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
     }
 
     private fun openNotificationAccess() {
         val detail = Intent(Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS).putExtra(
             Settings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME,
-            android.content.ComponentName(this, dev.mand.android.notify.NotificationMirrorService::class.java).flattenToString(),
+            ComponentName(this, NotificationMirrorService::class.java).flattenToString(),
         )
-        runCatching { startActivity(detail) }.onFailure {
-            startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-        }
+        runCatching { startActivity(detail) }.onFailure { startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
     }
 
     private fun refreshPermissions() {
         notificationAccess = app.notifications.hasAccess()
         permissions = PermissionStatus(
-            notifications = ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) ==
-                PackageManager.PERMISSION_GRANTED,
+            notifications = checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED,
             batteryUnrestricted = getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName),
         )
     }
 }
-
-data class PermissionStatus(val notifications: Boolean, val batteryUnrestricted: Boolean)
-
-class HomeActions(
-    val scanQr: () -> Unit,
-    val requestNotifications: () -> Unit,
-    val requestBatteryExemption: () -> Unit,
-    val resume: () -> Unit,
-    val pause: () -> Unit,
-)

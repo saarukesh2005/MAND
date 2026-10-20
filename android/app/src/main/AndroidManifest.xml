@@ -12,6 +12,11 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Lets the user exempt M’AND from battery optimisation so the link survives in the background. -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- Android 17+: reaching the Mac on the local network needs the user's "Nearby devices" consent. -->
+    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
+    <!-- Calls on Mac (off by default; asked only when the user turns it on). -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.ANSWER_PHONE_CALLS" />
     <!-- Reconnect to the paired Mac after the phone restarts. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 

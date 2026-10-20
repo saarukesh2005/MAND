@@ -28,6 +28,11 @@ class NotificationMirrorService : NotificationListenerService() {
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
+        // The dialer's incoming-call notification carries the caller's name; Calls on Mac uses it.
+        if (sbn.notification.category == Notification.CATEGORY_CALL) {
+            sbn.notification.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()?.takeIf { it.isNotBlank() }
+                ?.let { dev.mand.android.calls.CallBridge.callerName = it.truncatedToUtf8Bytes(128) }
+        }
         val message = toMessage(sbn) ?: return
         rememberSent(sbn.key)
         app.client.sendAsync(message)

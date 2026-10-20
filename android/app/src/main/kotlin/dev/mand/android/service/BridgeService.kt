@@ -30,7 +30,8 @@ class BridgeService : LifecycleService() {
         lifecycleScope.launch {
             var wasActive = false
             client.state.collect { state ->
-                val active = state is LinkState.Connected || state is LinkState.Searching || state is LinkState.Pairing
+                val active = state is LinkState.Connected || state is LinkState.Searching ||
+                    state is LinkState.Pairing || state is LinkState.Offline
                 if (active) {
                     wasActive = true
                     getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, buildNotification(state))
@@ -73,7 +74,9 @@ class BridgeService : LifecycleService() {
         )
         val text = when (state) {
             is LinkState.Connected -> "Connected to ${state.macName}"
-            is LinkState.Searching -> "Looking for ${state.macName}…"
+            is LinkState.Searching -> if (state.resting) "Will check for ${state.macName} every few minutes" else "Looking for ${state.macName}…"
+            is LinkState.Offline -> "Waiting for a network"
+            is LinkState.NeedsPermission -> "Needs “Nearby devices” permission"
             is LinkState.Pairing -> "Pairing with ${state.macName}…"
             is LinkState.Paused -> "Paused"
             is LinkState.NotPaired -> "Not paired"
