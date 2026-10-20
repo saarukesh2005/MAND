@@ -8,14 +8,23 @@ struct MandApp: App {
     // (Plain properties instead of @State: the @State macro needs Xcode's SwiftUIMacros plugin.)
     private let model = AppModel(macName: Host.current().localizedName ?? "Mac")
     private let ui = UIState()
+    private let quickShare: QuickShareController
+
+    init() {
+        quickShare = QuickShareController(model: model)
+    }
 
     var body: some Scene {
         Window("M’AND", id: "main") {
             RootView()
                 .environment(model)
                 .environment(ui)
+                .environment(quickShare)
                 .frame(minWidth: 760, minHeight: 520)
-                .task { model.start(identityProvider: { try DeviceIdentity.loadOrCreate(commonName: model.macName) }) }
+                .task {
+                    model.start(identityProvider: { try DeviceIdentity.loadOrCreate(commonName: model.macName) })
+                    quickShare.sync()
+                }
                 .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
                     model.stop()
                 }
@@ -23,7 +32,7 @@ struct MandApp: App {
         .defaultSize(width: 900, height: 620)
 
         Settings {
-            SettingsView().environment(model)
+            SettingsView().environment(model).environment(quickShare)
         }
 
         MenuBarExtra {

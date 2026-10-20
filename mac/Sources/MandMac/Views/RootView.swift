@@ -26,6 +26,7 @@ enum AppSection: String, CaseIterable, Identifiable {
 struct RootView: View {
     @Environment(AppModel.self) private var model
     @Environment(UIState.self) private var ui
+    @Environment(QuickShareController.self) private var quickShare
 
     var body: some View {
         @Bindable var ui = ui
@@ -51,6 +52,9 @@ struct RootView: View {
                 }
             }
             .navigationTitle(ui.section.rawValue)
+        }
+        .sheet(item: Binding(get: { quickShare.pending.first }, set: { _ in })) { request in
+            QuickShareConsentSheet(request: request).environment(quickShare)
         }
         .sheet(isPresented: Binding(get: { model.invitation != nil }, set: { if !$0 { model.cancelPairing() } })) {
             PairingSheet()

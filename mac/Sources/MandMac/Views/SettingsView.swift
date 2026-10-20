@@ -4,6 +4,7 @@ import SwiftUI
 /// The standard macOS Settings window (M’AND → Settings…, ⌘,).
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
+    @Environment(QuickShareController.self) private var quickShare
 
     var body: some View {
         @Bindable var settings = model.settings
@@ -31,6 +32,15 @@ struct SettingsView: View {
                 Text("Notifications")
             } footer: {
                 Text("You choose which phone apps share notifications in M’AND on your phone.")
+            }
+            Section {
+                Toggle("Receive files from Android Quick Share", isOn: Binding(
+                    get: { settings.quickShareEnabled },
+                    set: { settings.quickShareEnabled = $0; quickShare.sync() }))
+            } header: {
+                Text("Quick Share (unofficial)")
+            } footer: {
+                Text("Lets any Android phone on this Wi-Fi send files with its built-in Share → Quick Share, without opening M’AND. While on, this Mac is visible to everyone on the network, and you approve each transfer. Uses an unofficial protocol (adapted from the open-source NearDrop) that Google can change at any time. Off by default.")
             }
             Section("Files") {
                 LabeledContent("Save files from phone in") {

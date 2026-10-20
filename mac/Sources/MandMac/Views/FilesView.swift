@@ -10,6 +10,7 @@ struct FilesView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             DropZone()
+            QuickShareBanner()
             HStack {
                 Label {
                     Text("Files from your phone are saved in ") + Text(model.settings.downloadFolder.lastPathComponent).bold()

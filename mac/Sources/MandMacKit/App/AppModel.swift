@@ -239,6 +239,24 @@ public final class AppModel {
         historyStore.save([])
     }
 
+    /// Records a transfer that arrived another way (Quick Share) in the shared history.
+    public func recordReceived(files: [URL], from sender: String) {
+        let records = files.map { url in
+            let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Int64.init) ?? 0
+            let item = FileTransferService.Item(id: UUID().uuidString, name: url.lastPathComponent, direction: .incoming,
+                                                size: size, transferred: size, bytesPerSecond: 0, state: .done, savedURL: url)
+            return TransferRecord(item: item, deviceName: "\(sender) · Quick Share", finishedAt: Date())
+        }
+        history = Array((history + records).suffix(TransferHistoryStore.limit))
+        historyStore.save(history)
+    }
+
+    /// The folder received files are saved in (read by other receivers, e.g. Quick Share).
+    public nonisolated var downloadFolderProvider: @Sendable () -> URL {
+        let box = downloadFolderBox
+        return { box.get() }
+    }
+
     public func chooseDownloadFolder() {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
