@@ -100,6 +100,37 @@ See D7. Screen-local state (selected section, message draft, the device being fo
 ## D21. Swift↔Java interop test
 **Why:** the riskiest unknown was whether Apple's TLS and Java's TLS agree on mutual P-256 certificate authentication. A test-only Swift server and a Kotlin JSSE client prove it on the Mac before a phone is involved.
 
+## D22. The continuity layer is one append-only event log — 2026-11-12
+Context Engine, Task Capsules, Time Machine, Anywhere sync and Anticipate all need the same thing: **a trustworthy history of what happened, on which device, in what order.** So everything is built on a single local **context log** of immutable events (`capsule.created`, `item.added`, `note.edited`, `action.completed`, …). Current state is a deterministic *fold* of the log.
+- **Time Machine** = fold up to any moment, and diff two moments. **Restore and undo append new events**; history is never rewritten, so nothing is silently overwritten.
+- **Sync (Anywhere)** = exchange missing events, tracked by a per-device version vector. Events are idempotent; order is by (Lamport clock, device id).
+- **Conflicts:** scalar fields are last-writer-wins by that order; collections are add/remove sets where the latest event per item wins. This is a small op-based CRDT, just enough for capsules. Concurrent edits that both change the same field within one sync gap are recorded as a **conflict** the UI can show, never silently dropped.
+- **Shared reducer:** the fold is implemented in Swift (`MandContext`) and Kotlin (`:core`) and checked against shared vectors (`protocol/vectors/context-v1.json`), exactly like the network protocol.
+
+**Why not a full CRDT library:** capsules are small, mostly single-writer documents. A ~300-line reducer that both languages share and test identically is easier to verify than a dependency.
+
+## D23. Local databases
+- **Mac:** SQLite through the system `SQLite3` module, with no new dependency. Built-in FTS5 handles Personal Brain search; WAL mode; migrations via `PRAGMA user_version`.
+- **Android:** Room 2.8 (KSP) with FTS4 (Room's supported full-text index) and versioned migrations.
+- **Same logical model:** both store the same events; derived tables are rebuildable caches.
+
+## D24. Personal Brain without AI first
+- Full-text search (FTS5/FTS4) over capsule titles, notes, URLs, file names and **indexed document text** (plain text, Markdown and PDF via PDFKit on Mac).
+- **Relationships** are explicit (an item in a capsule, a tag) or **inferred** (shared tag, same web domain, same file); inferred ones are labelled as such.
+- **Semantic search and summaries** are added only when a local model is available (D25), always labelled "AI-generated".
+
+## D25. Local AI = Ollama on the Mac, optional
+- **Runtime:** M’AND talks to Ollama's local HTTP API (`127.0.0.1:11434`) when it is installed. It discovers models, health-checks them, and lets the user pick one.
+- **Phone:** the phone asks the Mac over the existing encrypted link. It never runs large models itself, and nothing goes to the internet.
+- **Without AI:** every feature works without AI; AI only adds summaries, grouping suggestions, natural-language search and Delegate planning.
+- **Hardware:** the GTX 1650 PC isn't assumed.
+
+## D26. Delegate runs a fixed tool registry, never a shell
+The agent can only call registered tools (create capsule, add items, group links, find unfinished work, move files into a folder, summarise). Each tool declares whether it reads or **changes** data; changing tools require explicit approval of the exact plan, and every run is recorded with its real outcome. There is no arbitrary shell or network tool.
+
+## D27. Screen mirroring over Wi-Fi uses MediaProjection + H.264
+For the "Mirror" module the phone captures its screen with MediaProjection (system consent dialog every session), encodes it with the hardware H.264 encoder, and streams it inside the existing pinned TLS link. The Mac decodes it with VideoToolbox. scrcpy over USB stays as the alternative. Remote control uses an Accessibility service the user enables explicitly; it is off by default.
+
 ## Open decisions
 - **Real-phone test:** everything in TESTING.md's checklist.
 - **Distribution:** personal sideloading for now. Google's developer verification for sideloaded apps rolls out globally in 2027; recheck the free "limited distribution" option before then.

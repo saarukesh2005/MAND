@@ -220,7 +220,7 @@ Project documents (in the docs folder):
   DEVELOPMENT.md            Setup and phone installation steps
   ROADMAP.md                Milestones and progress
   TESTING.md                Test results and the real-phone checklist
-  DECISIONS.md              21 key decisions and why they were made
+  TECHNICAL_DECISIONS.md              21 key decisions and why they were made
   REFERENCES.md             Related open-source projects and licence rules
   protocol/PROTOCOL.md      The message rulebook both apps follow
 

@@ -84,7 +84,7 @@ The Mac app builds with Apple's free Command Line Tools:
 - **Packaging:** `scripts/build-mac-app.sh` wraps the binary into `M’AND.app` and signs it with a stable local identity.
 - **Tests:** `scripts/test-mac.sh` works around the Command Line Tools' testing-plugin loader issue.
 
-See [DECISIONS.md](DECISIONS.md).
+See [TECHNICAL_DECISIONS.md](TECHNICAL_DECISIONS.md).
 
 ## Features (Milestones 2–5)
 

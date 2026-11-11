@@ -19,7 +19,7 @@ open "dist/M’AND.app"
 ```
 - **First launch:** M’AND creates its identity in your login keychain. If macOS asks about **Local Network**, choose **Allow**.
 - **First file from the phone:** macOS asks once whether M’AND may use your **Downloads** folder (the default save location). Choose **Allow**, or pick another folder in Settings.
-- **Why `test-mac.sh` and not `swift test`:** with only the Command Line Tools, Apple's test-macro plugin can't find its own libraries. The script keeps a private copy in `~/.mand-tools/swift-plugins` and loads it explicitly (DECISIONS.md D7).
+- **Why `test-mac.sh` and not `swift test`:** with only the Command Line Tools, Apple's test-macro plugin can't find its own libraries. The script keeps a private copy in `~/.mand-tools/swift-plugins` and loads it explicitly (TECHNICAL_DECISIONS.md D7).
 
 ## Android app
 ```bash
@@ -29,7 +29,7 @@ cd android
 ./gradlew :app:assembleDebug   # the APK
 ./gradlew :app:lintDebug       # Android lint
 ```
-- **Build output** goes to `~/.mand-build/`, not `android/*/build`. Gradle's test runner can't load classes from a folder whose path contains an apostrophe, and this project lives in `M'AND` (DECISIONS.md D15). The APK is at `~/.mand-build/_app/outputs/apk/debug/app-debug.apk`.
+- **Build output** goes to `~/.mand-build/`, not `android/*/build`. Gradle's test runner can't load classes from a folder whose path contains an apostrophe, and this project lives in `M'AND` (TECHNICAL_DECISIONS.md D15). The APK is at `~/.mand-build/_app/outputs/apk/debug/app-debug.apk`.
 - **`android/local.properties`** points to the SDK. It's machine-specific and ignored by git.
 
 ### Put it on your phone

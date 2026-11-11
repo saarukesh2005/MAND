@@ -59,6 +59,6 @@ scripts/interop-test.sh               # Swift server ↔ Kotlin/Java TLS client
 - [Development setup](docs/DEVELOPMENT.md)
 - [Roadmap](docs/ROADMAP.md)
 - [Testing and verification status](docs/TESTING.md)
-- [Decisions](docs/DECISIONS.md): why things are built this way
+- [Decisions](docs/TECHNICAL_DECISIONS.md): why things are built this way
 - [References](docs/REFERENCES.md): open-source projects we learn from, and licence rules
 - [Protocol specification](protocol/PROTOCOL.md)
