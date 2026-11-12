@@ -30,4 +30,7 @@ tasks.test {
     val vectors = rootProject.file("../protocol/vectors/protocol-v1.json")
     inputs.file(vectors) // re-run whenever the shared vectors change
     systemProperty("mand.vectors", vectors.absolutePath)
+    val contextVectors = rootProject.file("../protocol/vectors/context-v1.json")
+    inputs.file(contextVectors)
+    systemProperty("mand.contextVectors", contextVectors.absolutePath)
 }

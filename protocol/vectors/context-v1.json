@@ -1,0 +1,999 @@
+{
+  "description": "Shared context-log vectors (TECHNICAL_DECISIONS D22). Swift MandContext and Kotlin dev.mand.core.context must agree on every case.",
+  "fold": [
+    {
+      "name": "create, tag, add items, complete an action",
+      "events": [
+        {
+          "id": "e1",
+          "origin": "mac",
+          "seq": 1,
+          "lamport": 1,
+          "time": 1000,
+          "capsule": "cma",
+          "type": "capsule.created",
+          "data": {
+            "title": "Partnership Accounts",
+            "description": "CMA Inter"
+          }
+        },
+        {
+          "id": "e2",
+          "origin": "mac",
+          "seq": 2,
+          "lamport": 2,
+          "time": 1100,
+          "capsule": "cma",
+          "type": "capsule.tagged",
+          "data": {
+            "tag": "CMA"
+          }
+        },
+        {
+          "id": "e3",
+          "origin": "mac",
+          "seq": 3,
+          "lamport": 3,
+          "time": 1200,
+          "capsule": "cma",
+          "type": "item.added",
+          "data": {
+            "kind": "note",
+            "title": "Q1 working",
+            "text": "Goodwill = 12,000"
+          },
+          "item": "n1"
+        },
+        {
+          "id": "e4",
+          "origin": "mac",
+          "seq": 4,
+          "lamport": 4,
+          "time": 1300,
+          "capsule": "cma",
+          "type": "item.added",
+          "data": {
+            "kind": "url",
+            "title": "ICMAI notes",
+            "url": "https://icmai.in/notes"
+          },
+          "item": "u1"
+        },
+        {
+          "id": "e5",
+          "origin": "mac",
+          "seq": 5,
+          "lamport": 5,
+          "time": 1400,
+          "capsule": "cma",
+          "type": "item.added",
+          "data": {
+            "kind": "action",
+            "title": "Solve Q2"
+          },
+          "item": "a1"
+        },
+        {
+          "id": "e6",
+          "origin": "mac",
+          "seq": 6,
+          "lamport": 6,
+          "time": 1500,
+          "capsule": "cma",
+          "type": "item.set",
+          "data": {
+            "field": "done",
+            "value": true,
+            "base": "e5"
+          },
+          "item": "a1"
+        },
+        {
+          "id": "e7",
+          "origin": "mac",
+          "seq": 7,
+          "lamport": 7,
+          "time": 1600,
+          "capsule": "cma",
+          "type": "capsule.set",
+          "data": {
+            "field": "progress",
+            "value": 40,
+            "base": "e1"
+          }
+        }
+      ],
+      "expect": {
+        "capsules": [
+          {
+            "id": "cma",
+            "title": "Partnership Accounts",
+            "description": "CMA Inter",
+            "tags": [
+              "CMA"
+            ],
+            "pinned": false,
+            "archived": false,
+            "deleted": false,
+            "progress": 40,
+            "lastDevice": "mac",
+            "devices": [
+              "mac"
+            ],
+            "items": [
+              {
+                "id": "n1",
+                "kind": "note",
+                "title": "Q1 working",
+                "text": "Goodwill = 12,000",
+                "url": "",
+                "done": false
+              },
+              {
+                "id": "u1",
+                "kind": "url",
+                "title": "ICMAI notes",
+                "text": "",
+                "url": "https://icmai.in/notes",
+                "done": false
+              },
+              {
+                "id": "a1",
+                "kind": "action",
+                "title": "Solve Q2",
+                "text": "",
+                "url": "",
+                "done": true
+              }
+            ]
+          }
+        ],
+        "conflicts": []
+      }
+    },
+    {
+      "name": "arrival order doesn't matter (events shuffled, duplicates)",
+      "events": [
+        {
+          "id": "e3",
+          "origin": "pixel",
+          "seq": 1,
+          "lamport": 3,
+          "time": 1300,
+          "capsule": "cma",
+          "type": "capsule.set",
+          "data": {
+            "field": "title",
+            "value": "Partnership — Q1-Q5",
+            "base": "e2"
+          }
+        },
+        {
+          "id": "e1",
+          "origin": "mac",
+          "seq": 1,
+          "lamport": 1,
+          "time": 1000,
+          "capsule": "cma",
+          "type": "capsule.created",
+          "data": {
+            "title": "Partnership Accounts"
+          }
+        },
+        {
+          "id": "e2",
+          "origin": "mac",
+          "seq": 2,
+          "lamport": 2,
+          "time": 1100,
+          "capsule": "cma",
+          "type": "capsule.set",
+          "data": {
+            "field": "title",
+            "value": "Partnership",
+            "base": "e1"
+          }
+        },
+        {
+          "id": "e1",
+          "origin": "mac",
+          "seq": 1,
+          "lamport": 1,
+          "time": 1000,
+          "capsule": "cma",
+          "type": "capsule.created",
+          "data": {
+            "title": "Partnership Accounts"
+          }
+        }
+      ],
+      "expect": {
+        "capsules": [
+          {
+            "id": "cma",
+            "title": "Partnership — Q1-Q5",
+            "description": "",
+            "tags": [],
+            "pinned": false,
+            "archived": false,
+            "deleted": false,
+            "progress": 0,
+            "lastDevice": "mac",
+            "devices": [
+              "mac",
+              "pixel"
+            ],
+            "items": []
+          }
+        ],
+        "conflicts": []
+      }
+    },
+    {
+      "name": "concurrent title edits: later in order wins, conflict recorded",
+      "events": [
+        {
+          "id": "e1",
+          "origin": "mac",
+          "seq": 1,
+          "lamport": 1,
+          "time": 1000,
+          "capsule": "cma",
+          "type": "capsule.created",
+          "data": {
+            "title": "Partnership Accounts",
+            "description": "CMA Inter"
+          }
+        },
+        {
+          "id": "m2",
+          "origin": "mac",
+          "seq": 2,
+          "lamport": 2,
+          "time": 1100,
+          "capsule": "cma",
+          "type": "capsule.set",
+          "data": {
+            "field": "title",
+            "value": "Mac title",
+            "base": "e1"
+          }
+        },
+        {
+          "id": "p1",
+          "origin": "pixel",
+          "seq": 1,
+          "lamport": 2,
+          "time": 1050,
+          "capsule": "cma",
+          "type": "capsule.set",
+          "data": {
+            "field": "title",
+            "value": "Pixel title",
+            "base": "e1"
+          }
+        }
+      ],
+      "expect": {
+        "capsules": [
+          {
+            "id": "cma",
+            "title": "Pixel title",
+            "description": "CMA Inter",
+            "tags": [],
+            "pinned": false,
+            "archived": false,
+            "deleted": false,
+            "progress": 0,
+            "lastDevice": "mac",
+            "devices": [
+              "mac",
+              "pixel"
+            ],
+            "items": []
+          }
+        ],
+        "conflicts": [
+          {
+            "capsule": "cma",
+            "item": "",
+            "field": "title",
+            "kept": "p1",
+            "lost": "m2"
+          }
+        ]
+      }
+    },
+    {
+      "name": "a later edit that saw the winner resolves the conflict",
+      "events": [
+        {
+          "id": "e1",
+          "origin": "mac",
+          "seq": 1,
+          "lamport": 1,
+          "time": 1000,
+          "capsule": "cma",
+          "type": "capsule.created",
+          "data": {
+            "title": "Partnership Accounts",
+            "description": "CMA Inter"
+          }
+        },
+        {
+          "id": "m2",
+          "origin": "mac",
+          "seq": 2,
+          "lamport": 2,
+          "time": 1100,
+          "capsule": "cma",
+          "type": "capsule.set",
+          "data": {
+            "field": "title",
+            "value": "Mac title",
+            "base": "e1"
+          }
+        },
+        {
+          "id": "p1",
+          "origin": "pixel",
+          "seq": 1,
+          "lamport": 2,
+          "time": 1050,
+          "capsule": "cma",
+          "type": "capsule.set",
+          "data": {
+            "field": "title",
+            "value": "Pixel title",
+            "base": "e1"
+          }
+        },
+        {
+          "id": "m3",
+          "origin": "mac",
+          "seq": 3,
+          "lamport": 3,
+          "time": 1200,
+          "capsule": "cma",
+          "type": "capsule.set",
+          "data": {
+            "field": "title",
+            "value": "Agreed title",
+            "base": "p1"
+          }
+        }
+      ],
+      "expect": {
+        "capsules": [
+          {
+            "id": "cma",
+            "title": "Agreed title",
+            "description": "CMA Inter",
+            "tags": [],
+            "pinned": false,
+            "archived": false,
+            "deleted": false,
+            "progress": 0,
+            "lastDevice": "mac",
+            "devices": [
+              "mac",
+              "pixel"
+            ],
+            "items": []
+          }
+        ],
+        "conflicts": []
+      }
+    },
+    {
+      "name": "same value from both devices is not a conflict",
+      "events": [
+        {
+          "id": "e1",
+          "origin": "mac",
+          "seq": 1,
+          "lamport": 1,
+          "time": 1000,
+          "capsule": "cma",
+          "type": "capsule.created",
+          "data": {
+            "title": "Partnership Accounts",
+            "description": "CMA Inter"
+          }
+        },
+        {
+          "id": "m2",
+          "origin": "mac",
+          "seq": 2,
+          "lamport": 2,
+          "time": 1100,
+          "capsule": "cma",
+          "type": "capsule.set",
+          "data": {
+            "field": "pinned",
+            "value": true,
+            "base": "e1"
+          }
+        },
+        {
+          "id": "p1",
+          "origin": "pixel",
+          "seq": 1,
+          "lamport": 2,
+          "time": 1050,
+          "capsule": "cma",
+          "type": "capsule.set",
+          "data": {
+            "field": "pinned",
+            "value": true,
+            "base": "e1"
+          }
+        }
+      ],
+      "expect": {
+        "capsules": [
+          {
+            "id": "cma",
+            "title": "Partnership Accounts",
+            "description": "CMA Inter",
+            "tags": [],
+            "pinned": true,
+            "archived": false,
+            "deleted": false,
+            "progress": 0,
+            "lastDevice": "mac",
+            "devices": [
+              "mac",
+              "pixel"
+            ],
+            "items": []
+          }
+        ],
+        "conflicts": []
+      }
+    },
+    {
+      "name": "removed items stay removed; edits to them are ignored; untag",
+      "events": [
+        {
+          "id": "e1",
+          "origin": "mac",
+          "seq": 1,
+          "lamport": 1,
+          "time": 1000,
+          "capsule": "cma",
+          "type": "capsule.created",
+          "data": {
+            "title": "Partnership Accounts",
+            "description": "CMA Inter"
+          }
+        },
+        {
+          "id": "e2",
+          "origin": "mac",
+          "seq": 2,
+          "lamport": 2,
+          "time": 1100,
+          "capsule": "cma",
+          "type": "item.added",
+          "data": {
+            "kind": "note",
+            "title": "Draft"
+          },
+          "item": "n1"
+        },
+        {
+          "id": "e3",
+          "origin": "mac",
+          "seq": 3,
+          "lamport": 3,
+          "time": 1200,
+          "capsule": "cma",
+          "type": "capsule.tagged",
+          "data": {
+            "tag": "old"
+          }
+        },
+        {
+          "id": "e4",
+          "origin": "mac",
+          "seq": 4,
+          "lamport": 4,
+          "time": 1300,
+          "capsule": "cma",
+          "type": "item.removed",
+          "data": {},
+          "item": "n1"
+        },
+        {
+          "id": "e5",
+          "origin": "pixel",
+          "seq": 1,
+          "lamport": 5,
+          "time": 1400,
+          "capsule": "cma",
+          "type": "item.set",
+          "data": {
+            "field": "text",
+            "value": "late edit"
+          },
+          "item": "n1"
+        },
+        {
+          "id": "e6",
+          "origin": "mac",
+          "seq": 5,
+          "lamport": 6,
+          "time": 1500,
+          "capsule": "cma",
+          "type": "capsule.untagged",
+          "data": {
+            "tag": "old"
+          }
+        }
+      ],
+      "expect": {
+        "capsules": [
+          {
+            "id": "cma",
+            "title": "Partnership Accounts",
+            "description": "CMA Inter",
+            "tags": [],
+            "pinned": false,
+            "archived": false,
+            "deleted": false,
+            "progress": 0,
+            "lastDevice": "mac",
+            "devices": [
+              "mac",
+              "pixel"
+            ],
+            "items": []
+          }
+        ],
+        "conflicts": []
+      }
+    },
+    {
+      "name": "opening on the phone moves the activity there",
+      "events": [
+        {
+          "id": "e1",
+          "origin": "mac",
+          "seq": 1,
+          "lamport": 1,
+          "time": 1000,
+          "capsule": "cma",
+          "type": "capsule.created",
+          "data": {
+            "title": "Partnership Accounts",
+            "description": "CMA Inter"
+          }
+        },
+        {
+          "id": "p1",
+          "origin": "pixel",
+          "seq": 1,
+          "lamport": 2,
+          "time": 5000,
+          "capsule": "cma",
+          "type": "capsule.opened",
+          "data": {}
+        }
+      ],
+      "expect": {
+        "capsules": [
+          {
+            "id": "cma",
+            "title": "Partnership Accounts",
+            "description": "CMA Inter",
+            "tags": [],
+            "pinned": false,
+            "archived": false,
+            "deleted": false,
+            "progress": 0,
+            "lastDevice": "pixel",
+            "devices": [
+              "mac",
+              "pixel"
+            ],
+            "items": []
+          }
+        ],
+        "conflicts": []
+      }
+    },
+    {
+      "name": "events for a capsule that was never created are ignored",
+      "events": [
+        {
+          "id": "x1",
+          "origin": "mac",
+          "seq": 1,
+          "lamport": 1,
+          "time": 1000,
+          "capsule": "ghost",
+          "type": "capsule.set",
+          "data": {
+            "field": "title",
+            "value": "Ghost"
+          }
+        }
+      ],
+      "expect": {
+        "capsules": [],
+        "conflicts": []
+      }
+    },
+    {
+      "name": "time machine: state as of an earlier moment",
+      "asOf": 1250,
+      "events": [
+        {
+          "id": "e1",
+          "origin": "mac",
+          "seq": 1,
+          "lamport": 1,
+          "time": 1000,
+          "capsule": "cma",
+          "type": "capsule.created",
+          "data": {
+            "title": "Partnership Accounts",
+            "description": "CMA Inter"
+          }
+        },
+        {
+          "id": "e2",
+          "origin": "mac",
+          "seq": 2,
+          "lamport": 2,
+          "time": 1100,
+          "capsule": "cma",
+          "type": "capsule.set",
+          "data": {
+            "field": "title",
+            "value": "Earlier title",
+            "base": "e1"
+          }
+        },
+        {
+          "id": "e3",
+          "origin": "mac",
+          "seq": 3,
+          "lamport": 3,
+          "time": 1300,
+          "capsule": "cma",
+          "type": "capsule.set",
+          "data": {
+            "field": "title",
+            "value": "Later title",
+            "base": "e2"
+          }
+        },
+        {
+          "id": "e4",
+          "origin": "mac",
+          "seq": 4,
+          "lamport": 4,
+          "time": 1400,
+          "capsule": "cma",
+          "type": "capsule.set",
+          "data": {
+            "field": "deleted",
+            "value": true
+          }
+        }
+      ],
+      "expect": {
+        "capsules": [
+          {
+            "id": "cma",
+            "title": "Earlier title",
+            "description": "CMA Inter",
+            "tags": [],
+            "pinned": false,
+            "archived": false,
+            "deleted": false,
+            "progress": 0,
+            "lastDevice": "mac",
+            "devices": [
+              "mac"
+            ],
+            "items": []
+          }
+        ],
+        "conflicts": []
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "name": "unknown type",
+      "event": {
+        "id": "i1",
+        "origin": "mac",
+        "seq": 1,
+        "lamport": 1,
+        "time": 1,
+        "capsule": "cma",
+        "type": "capsule.exploded",
+        "data": {}
+      }
+    },
+    {
+      "name": "empty title",
+      "event": {
+        "id": "i2",
+        "origin": "mac",
+        "seq": 1,
+        "lamport": 1,
+        "time": 1,
+        "capsule": "cma",
+        "type": "capsule.created",
+        "data": {
+          "title": ""
+        }
+      }
+    },
+    {
+      "name": "title over 256 bytes",
+      "event": {
+        "id": "i3",
+        "origin": "mac",
+        "seq": 1,
+        "lamport": 1,
+        "time": 1,
+        "capsule": "cma",
+        "type": "capsule.created",
+        "data": {
+          "title": "ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"
+        }
+      }
+    },
+    {
+      "name": "progress over 100",
+      "event": {
+        "id": "i4",
+        "origin": "mac",
+        "seq": 1,
+        "lamport": 1,
+        "time": 1,
+        "capsule": "cma",
+        "type": "capsule.set",
+        "data": {
+          "field": "progress",
+          "value": 101
+        }
+      }
+    },
+    {
+      "name": "pinned as a string",
+      "event": {
+        "id": "i5",
+        "origin": "mac",
+        "seq": 1,
+        "lamport": 1,
+        "time": 1,
+        "capsule": "cma",
+        "type": "capsule.set",
+        "data": {
+          "field": "pinned",
+          "value": "true"
+        }
+      }
+    },
+    {
+      "name": "title value as number",
+      "event": {
+        "id": "i6",
+        "origin": "mac",
+        "seq": 1,
+        "lamport": 1,
+        "time": 1,
+        "capsule": "cma",
+        "type": "capsule.set",
+        "data": {
+          "field": "title",
+          "value": 5
+        }
+      }
+    },
+    {
+      "name": "unknown field",
+      "event": {
+        "id": "i7",
+        "origin": "mac",
+        "seq": 1,
+        "lamport": 1,
+        "time": 1,
+        "capsule": "cma",
+        "type": "capsule.set",
+        "data": {
+          "field": "owner",
+          "value": "x"
+        }
+      }
+    },
+    {
+      "name": "javascript: url",
+      "event": {
+        "id": "i8",
+        "origin": "mac",
+        "seq": 1,
+        "lamport": 1,
+        "time": 1,
+        "capsule": "cma",
+        "type": "item.added",
+        "data": {
+          "kind": "url",
+          "title": "x",
+          "url": "javascript:alert(1)"
+        },
+        "item": "u1"
+      }
+    },
+    {
+      "name": "file: url",
+      "event": {
+        "id": "i9",
+        "origin": "mac",
+        "seq": 1,
+        "lamport": 1,
+        "time": 1,
+        "capsule": "cma",
+        "type": "item.added",
+        "data": {
+          "kind": "url",
+          "title": "x",
+          "url": "file:///etc/passwd"
+        },
+        "item": "u1"
+      }
+    },
+    {
+      "name": "item.added without item id",
+      "event": {
+        "id": "i10",
+        "origin": "mac",
+        "seq": 1,
+        "lamport": 1,
+        "time": 1,
+        "capsule": "cma",
+        "type": "item.added",
+        "data": {
+          "kind": "note",
+          "title": "x"
+        }
+      }
+    },
+    {
+      "name": "bad id characters",
+      "event": {
+        "id": "../x",
+        "origin": "mac",
+        "seq": 1,
+        "lamport": 1,
+        "time": 1,
+        "capsule": "cma",
+        "type": "capsule.opened",
+        "data": {}
+      }
+    },
+    {
+      "name": "seq zero",
+      "event": {
+        "id": "i12",
+        "origin": "mac",
+        "seq": 0,
+        "lamport": 1,
+        "time": 1,
+        "capsule": "cma",
+        "type": "capsule.opened",
+        "data": {}
+      }
+    },
+    {
+      "name": "lamport as float",
+      "event": {
+        "id": "i13",
+        "origin": "mac",
+        "seq": 1,
+        "lamport": 1.5,
+        "time": 1,
+        "capsule": "cma",
+        "type": "capsule.opened",
+        "data": {}
+      }
+    },
+    {
+      "name": "bad sha256",
+      "event": {
+        "id": "i14",
+        "origin": "mac",
+        "seq": 1,
+        "lamport": 1,
+        "time": 1,
+        "capsule": "cma",
+        "type": "item.added",
+        "data": {
+          "kind": "file",
+          "title": "x",
+          "sha256": "XYZ"
+        },
+        "item": "f1"
+      }
+    },
+    {
+      "name": "unknown item kind",
+      "event": {
+        "id": "i15",
+        "origin": "mac",
+        "seq": 1,
+        "lamport": 1,
+        "time": 1,
+        "capsule": "cma",
+        "type": "item.added",
+        "data": {
+          "kind": "video",
+          "title": "x"
+        },
+        "item": "f1"
+      }
+    }
+  ],
+  "valid": [
+    {
+      "name": "file item with hash and size",
+      "event": {
+        "id": "v1",
+        "origin": "mac",
+        "seq": 1,
+        "lamport": 1,
+        "time": 1,
+        "capsule": "cma",
+        "type": "item.added",
+        "data": {
+          "kind": "file",
+          "title": "Ref.pdf",
+          "fileName": "Ref.pdf",
+          "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "size": 1234
+        },
+        "item": "f1"
+      }
+    },
+    {
+      "name": "mailto link",
+      "event": {
+        "id": "v2",
+        "origin": "mac",
+        "seq": 1,
+        "lamport": 1,
+        "time": 1,
+        "capsule": "cma",
+        "type": "item.added",
+        "data": {
+          "kind": "url",
+          "title": "Mail",
+          "url": "mailto:a@b.c"
+        },
+        "item": "u1"
+      }
+    },
+    {
+      "name": "created without description",
+      "event": {
+        "id": "v3",
+        "origin": "mac",
+        "seq": 1,
+        "lamport": 1,
+        "time": 1,
+        "capsule": "cma",
+        "type": "capsule.created",
+        "data": {
+          "title": "T"
+        }
+      }
+    }
+  ]
+}
