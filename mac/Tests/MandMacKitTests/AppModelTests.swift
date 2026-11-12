@@ -113,4 +113,21 @@ struct AppModelTests {
         #expect(model.sendLink("file:///etc/passwd") == .invalid)
         #expect(model.sendLink("https://example.com") == .notConnected)
     }
+
+    @Test("Control positions are clamped fractions of 10,000")
+    func controlScale() {
+        #expect(AppModel.scaled(0) == 0)
+        #expect(AppModel.scaled(0.5) == 5_000)
+        #expect(AppModel.scaled(1.7) == 10_000)
+        #expect(AppModel.scaled(-1) == 0)
+        #expect(AppModel.scaled(.nan) == 0)
+    }
+
+    @Test("The phone says when it accepts control")
+    func controlState() {
+        model.apply(.phoneConnected(phoneA, address: nil, features: Set(Feature.all)))
+        #expect(model.selected?.canControl == false)
+        model.apply(.featureMessage(.controlState(available: true), from: phoneA))
+        #expect(model.selected?.canControl == true)
+    }
 }

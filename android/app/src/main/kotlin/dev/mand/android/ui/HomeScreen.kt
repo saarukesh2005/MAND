@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.BatteryAlert
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.CloudOff
+import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Laptop
 import androidx.compose.material.icons.outlined.LaptopChromebook
 import androidx.compose.material.icons.outlined.Notifications
@@ -107,7 +108,7 @@ fun HomeScreen(
             StatusHero(state, phoneSecurityCode, actions)
             when (state) {
                 is LinkState.Connected -> MessagesCard(chat, client::sendText)
-                is LinkState.Searching -> TroubleshootingCard(client::setManualHost)
+                is LinkState.Searching -> TroubleshootingCard(client, state as LinkState.Searching)
                 else -> Unit
             }
             val paired = state !is LinkState.NotPaired && state !is LinkState.Pairing
@@ -284,14 +285,19 @@ private fun MessagesCard(chat: List<ChatLine>, send: (String) -> Boolean) {
 }
 
 @Composable
-private fun TroubleshootingCard(setManualHost: (String) -> Unit) {
+private fun TroubleshootingCard(client: BridgeClient, state: LinkState.Searching) {
+    val setManualHost: (String) -> Unit = client::setManualHost
     var host by rememberSaveable { mutableStateOf("") }
-    MandCard(title = "Can’t connect?") {
-        listOf(
-            "Open M’AND on the Mac.",
-            "Use the same Wi-Fi on both (guest networks often block devices from seeing each other).",
-            "If macOS asked about Local Network access for M’AND, choose Allow.",
-        ).forEachIndexed { index, tip -> Tip("${index + 1}. $tip") }
+    val nearby by client.nearbyMacs.collectAsStateWithLifecycle()
+    val onWifi = client.isOnLocalNetwork()
+    val macVisible = nearby.isNotEmpty()
+    MandCard(title = "Connection check") {
+        // Live checks, so people see exactly which step is the problem.
+        Check(onWifi, "This phone is on Wi-Fi", "Turn on Wi-Fi and join the same network as your Mac.")
+        Check(macVisible, "Your Mac is visible on this Wi-Fi",
+            "Open M’AND on your Mac. Use the same Wi-Fi on both; guest networks often hide devices from each other.")
+        state.lastError?.let { Hint("Last try: $it") }
+        Hint("If macOS asked about Local Network access for M’AND, choose Allow.")
         Hint("Still stuck? Type the Mac’s address. The Mac shows it under “Can’t connect?”.")
         OutlinedTextField(
             value = host, onValueChange = { host = it }, singleLine = true,
@@ -301,6 +307,24 @@ private fun TroubleshootingCard(setManualHost: (String) -> Unit) {
             modifier = Modifier.fillMaxWidth(),
         )
         OutlinedButton(onClick = { setManualHost(host) }, enabled = host.isNotBlank()) { Text("Connect") }
+    }
+}
+
+/** One line of the connection check: a tick or a cross, in words as well as colour. */
+@Composable
+private fun Check(ok: Boolean, label: String, fix: String) {
+    Row(verticalAlignment = Alignment.Top, modifier = Modifier.semantics(mergeDescendants = true) {}) {
+        Icon(
+            if (ok) Icons.Outlined.CheckCircle else Icons.Outlined.ErrorOutline,
+            contentDescription = if (ok) "Yes" else "No",
+            tint = if (ok) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+            modifier = Modifier.size(22.dp),
+        )
+        Spacer(Modifier.width(Space.S))
+        Column {
+            Text(label, style = MaterialTheme.typography.bodyLarge)
+            if (!ok) Text(fix, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
 

@@ -73,6 +73,16 @@ class BridgeClient private constructor(private val context: Context) {
 
     private val connectivity = context.getSystemService(ConnectivityManager::class.java)
 
+    /** Macs running M’AND that this phone can currently see on the local network (for the connection check). */
+    val nearbyMacs: kotlinx.coroutines.flow.StateFlow<Map<String, DiscoveredMac>> get() = discovery.found
+
+    /** True when the phone is on Wi-Fi or Ethernet (the Mac can only be reached on a local network). */
+    fun isOnLocalNetwork(): Boolean {
+        val caps = connectivity.getNetworkCapabilities(connectivity.activeNetwork) ?: return false
+        return caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) ||
+            caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_ETHERNET)
+    }
+
     init {
         scope.launch { refreshIdleState() }
         connectivity.registerDefaultNetworkCallback(
@@ -433,8 +443,10 @@ class BridgeClient private constructor(private val context: Context) {
                     is Message.ClipboardText, is Message.NotificationDismiss, is Message.CallActionRequest,
                     is Message.TapGrab, is Message.TapSeen, is Message.TapResult,
                     is Message.FindRing, is Message.FindStop, is Message.LinkOpen,
-                    is Message.ScreenRequest, is Message.ScreenStop -> {
+                    is Message.ScreenRequest, is Message.ScreenStop,
+                    is Message.ControlTap, is Message.ControlSwipe, is Message.ControlKey -> {
                         val feature = when (message) {
+                            is Message.ControlTap, is Message.ControlSwipe, is Message.ControlKey -> Feature.CONTROL
                             is Message.ScreenRequest, is Message.ScreenStop -> Feature.SCREEN
                             is Message.FindRing, is Message.FindStop -> Feature.FIND
                             is Message.LinkOpen -> Feature.LINK

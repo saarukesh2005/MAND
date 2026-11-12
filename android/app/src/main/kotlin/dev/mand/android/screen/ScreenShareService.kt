@@ -91,6 +91,8 @@ class ScreenShareService : Service() {
         this.codec = codec
         running.set(true)
         app.client.sendAsync(Message.ScreenStart(width, height))
+        isRunning = true
+        app.remoteControl.reportAvailability()
         display = projection.createVirtualDisplay(
             "M’AND", width, height, resources.displayMetrics.densityDpi,
             DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, surface, null, null,
@@ -143,6 +145,7 @@ class ScreenShareService : Service() {
     @Synchronized
     private fun stopSharing(reason: String) {
         val wasRunning = running.getAndSet(false)
+        isRunning = false
         display?.release(); display = null
         runCatching { codec?.signalEndOfInputStream() }
         drain?.join(500); drain = null
@@ -179,6 +182,9 @@ class ScreenShareService : Service() {
     }
 
     companion object {
+        /** True while the screen is being shared (remote control is only accepted then). */
+        @Volatile var isRunning = false
+            private set
         private const val TAG = "MandScreen"
         private const val CHANNEL_ID = "mand_screen"
         private const val NOTIFICATION_ID = 4201

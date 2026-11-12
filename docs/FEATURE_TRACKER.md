@@ -90,7 +90,7 @@ Last updated: 2026-11-12.
 | Feature | Mac | Android | Evidence / notes |
 |---|---|---|---|
 | Control via scrcpy (opt-in) | IMPLEMENTED | n/a | |
-| Tap / scroll / keyboard / navigation via AccessibilityService | NOT_STARTED | NOT_STARTED | |
+| Tap / scroll / keyboard / navigation via AccessibilityService | IMPLEMENTED | IMPLEMENTED | tap, swipe/scroll, Back/Home/Recents (`control.v1`); keyboard not started |
 | Instant disconnect | NOT_STARTED | NOT_STARTED | |
 
 ## 07b Find my phone and accessibility (added 2026-11-12, v0.5.0)
@@ -108,6 +108,7 @@ Last updated: 2026-11-12.
 | Pair from the phone's camera app (`mand://pair` link, confirm dialog) | n/a | IMPLEMENTED | |
 | Get-the-app QR on the Mac's pairing sheet | IMPLEMENTED | n/a | |
 | Built-in Wi-Fi screen mirroring (`screen.v1`, MediaProjection → H.264 → AVSampleBufferDisplayLayer), view only | IMPLEMENTED | IMPLEMENTED | H264Tests (4), shared vectors (10); USB/scrcpy kept as Advanced |
+| Control the phone from the Mac (`control.v1`): click = tap, drag = swipe, Back/Home/Recents; only while sharing + Accessibility on | IMPLEMENTED | IMPLEMENTED | vectors (7) + round-trips; AppModelTests.controlScale/controlState |
 
 ## 08 Tap to Send (from TapDrop, github.com/0x1p0/TapDrop, MIT — added 2026-11-12)
 | Feature | Mac | Android | Evidence / notes |

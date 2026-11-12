@@ -110,6 +110,7 @@ private fun FindAndLinksCard(connected: Boolean) {
             enabled = connected,
         ) { Text("Show my screen on Mac") }
         Hint(if (connected) "Your Mac shows your screen over Wi-Fi. Android asks you first, every time." else "Connect to your Mac first to show your screen.")
+        Hint("To tap and swipe from your Mac too, turn on Tap to Send below. Your Mac can only control the phone while you are showing your screen.")
         Hint("To open a web page on your Mac: in your browser tap Share → M’AND.")
         Hint("Links sent from your Mac appear as a notification here. Tap it to open the page.")
     }
@@ -250,7 +251,7 @@ private fun TapCard(app: MandApp, connected: Boolean, tapEnabled: Boolean, actio
             Hint(if (connected && app.client.macSupports(Feature.TAP)) "Ready. Also turn on Tap to Send on your Mac." else "On. Waiting for your Mac to connect.")
         } else {
             Text("Turn it on in 3 steps:", style = MaterialTheme.typography.bodyMedium)
-            Hint("1. Tap the button below.\n2. Choose “M’AND Tap to Send”.\n3. Turn it on and tap Allow.")
+            Hint("1. Tap the button below.\n2. Choose “M’AND Tap to Send and control”.\n3. Turn it on and tap Allow.")
             Hint("If it’s greyed out: long-press the M’AND icon → App info → ⋮ (top right) → Allow restricted settings, then try again.")
         }
         OutlinedButton(onClick = actions.openAccessibility) { Text(if (tapEnabled) "Tap to Send settings" else "Turn on Tap to Send") }

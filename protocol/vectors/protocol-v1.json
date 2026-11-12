@@ -704,6 +704,48 @@
       "json": "{\"v\":1,\"type\":\"screen.stop\",\"id\":\"s9\",\"ts\":1,\"body\":{}}",
       "expect": "error",
       "code": "malformed"
+    },
+    {
+      "name": "control.tap",
+      "json": "{\"v\":1,\"type\":\"control.tap\",\"id\":\"c0\",\"ts\":1,\"body\":{\"x\":5000,\"y\":10000}}",
+      "expect": "ok",
+      "type": "control.tap"
+    },
+    {
+      "name": "control.tap outside the screen",
+      "json": "{\"v\":1,\"type\":\"control.tap\",\"id\":\"c1\",\"ts\":1,\"body\":{\"x\":10001,\"y\":0}}",
+      "expect": "error",
+      "code": "malformed"
+    },
+    {
+      "name": "control.swipe",
+      "json": "{\"v\":1,\"type\":\"control.swipe\",\"id\":\"c2\",\"ts\":1,\"body\":{\"x1\":5000,\"y1\":8000,\"x2\":5000,\"y2\":2000,\"ms\":300}}",
+      "expect": "ok",
+      "type": "control.swipe"
+    },
+    {
+      "name": "control.swipe too fast",
+      "json": "{\"v\":1,\"type\":\"control.swipe\",\"id\":\"c3\",\"ts\":1,\"body\":{\"x1\":0,\"y1\":0,\"x2\":1,\"y2\":1,\"ms\":10}}",
+      "expect": "error",
+      "code": "malformed"
+    },
+    {
+      "name": "control.key home",
+      "json": "{\"v\":1,\"type\":\"control.key\",\"id\":\"c4\",\"ts\":1,\"body\":{\"key\":\"home\"}}",
+      "expect": "ok",
+      "type": "control.key"
+    },
+    {
+      "name": "control.key unknown",
+      "json": "{\"v\":1,\"type\":\"control.key\",\"id\":\"c5\",\"ts\":1,\"body\":{\"key\":\"power\"}}",
+      "expect": "error",
+      "code": "malformed"
+    },
+    {
+      "name": "control.state",
+      "json": "{\"v\":1,\"type\":\"control.state\",\"id\":\"c6\",\"ts\":1,\"body\":{\"available\":false}}",
+      "expect": "ok",
+      "type": "control.state"
     }
   ],
   "versionNegotiation": [

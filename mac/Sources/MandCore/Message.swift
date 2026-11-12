@@ -11,7 +11,8 @@ public enum Feature {
     public static let find = "find.v1"
     public static let link = "link.v1"
     public static let screen = "screen.v1"
-    public static let all: [String] = [files, clipboard, device, notifications, calls, tap, find, link, screen]
+    public static let control = "control.v1"
+    public static let all: [String] = [files, clipboard, device, notifications, calls, tap, find, link, screen, control]
 }
 
 /// The `hello` body (protocol §3).
@@ -143,7 +144,15 @@ public enum Message: Equatable, Sendable {
     case screenStart(width: Int, height: Int)
     case screenFrame(seq: Int64, key: Bool, data: Data)
     case screenStop(reason: String)
+    /// Positions are fractions of the screen × 10,000 (0 = left/top, 10,000 = right/bottom).
+    case controlTap(x: Int, y: Int)
+    case controlSwipe(x1: Int, y1: Int, x2: Int, y2: Int, ms: Int)
+    case controlKey(ControlKey)
+    case controlState(available: Bool)
     case unknown(type: String)
+
+    public enum ControlKey: String, Sendable, CaseIterable { case back, home, recents }
+    public static let controlScale = 10_000
 
     public enum CallState: String, Sendable { case ringing, active, idle }
     public enum CallAction: String, Sendable { case answer, decline }
@@ -199,6 +208,10 @@ public enum Message: Equatable, Sendable {
         case .screenStart: "screen.start"
         case .screenFrame: "screen.frame"
         case .screenStop: "screen.stop"
+        case .controlTap: "control.tap"
+        case .controlSwipe: "control.swipe"
+        case .controlKey: "control.key"
+        case .controlState: "control.state"
         case .unknown(let type): type
         }
     }
@@ -213,6 +226,7 @@ public enum Message: Equatable, Sendable {
         case .findRing, .findStop, .findState: Feature.find
         case .linkOpen: Feature.link
         case .screenRequest, .screenStart, .screenFrame, .screenStop: Feature.screen
+        case .controlTap, .controlSwipe, .controlKey, .controlState: Feature.control
         case .notificationPosted, .notificationRemoved, .notificationDismiss: Feature.notifications
         case .callState, .callAction: Feature.calls
         case .tapKnock, .tapGrab, .tapDecline, .tapLight, .tapSeen, .tapResult: Feature.tap

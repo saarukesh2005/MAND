@@ -28,6 +28,8 @@ class MandApp : Application() {
         private set
     lateinit var links: dev.mand.android.link.LinkBridge
         private set
+    lateinit var remoteControl: dev.mand.android.screen.RemoteControl
+        private set
 
     override fun onCreate() {
         super.onCreate()
@@ -39,9 +41,10 @@ class MandApp : Application() {
         calls = CallBridge(this, client, settings)
         find = dev.mand.android.find.FindPhone(this, client)
         links = dev.mand.android.link.LinkBridge(this, client)
+        remoteControl = dev.mand.android.screen.RemoteControl(this)
         val battery = BatteryReporter(this, client)
         listOf(files, clipboard, notifications, battery, calls, dev.mand.android.tap.TapBridge(this), find, links,
-            dev.mand.android.screen.ScreenBridge(this))
+            dev.mand.android.screen.ScreenBridge(this), remoteControl)
             .forEach(client::register)
         battery.start()
         // Start watching call state once saved settings are loaded (only if the user turned it on).

@@ -57,6 +57,8 @@ public final class AppModel {
         public var latencyMs: Int?
         /// The phone said it's playing the find-my-phone sound.
         public var isRinging = false
+        /// The phone accepts taps and swipes from this Mac (only while it shares its screen).
+        public var canControl = false
         public let connectedAt: Date
 
         public var id: String { device.fingerprint.hex }
@@ -600,6 +602,8 @@ public final class AppModel {
             update(fingerprint) { $0.info = info }
         case .findState(let ringing):
             update(fingerprint) { $0.isRinging = ringing }
+        case .controlState(let available):
+            update(fingerprint) { $0.canControl = available }
         case .linkOpen(let url, let title):
             receiveLink(url, title: title, from: device)
         case .callState(let state, let caller):

@@ -328,27 +328,52 @@ struct TestMessageCard: View {
     }
 }
 
-/// “How do I fix a connection problem?”
+/// “How do I fix a connection problem?” Live checks first, then the fixes for whatever failed.
 struct TroubleshootingCard: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        Card(title: "Can’t connect?") {
+        let addresses = LocalAddresses.privateIPv4()
+        Card(title: "Connection check") {
             VStack(alignment: .leading, spacing: Theme.Space.s) {
-                Tip("Both devices must be on the same Wi-Fi network (not a guest network).")
+                CheckRow(ok: { if case .listening = model.serverStatus { true } else { false } }(),
+                         label: "M’AND is ready for your phone",
+                         fix: "Quit and reopen M’AND.")
+                CheckRow(ok: !addresses.isEmpty, label: "This Mac is on a Wi-Fi or local network",
+                         fix: "Turn on Wi-Fi and join the same network as your phone.")
+                CheckRow(ok: model.trustedListProblem == nil, label: "M’AND can read its list of paired phones",
+                         fix: "Click Try Again above and allow Keychain access.")
+                Tip("On your phone, open M’AND. It connects by itself within a few seconds.")
+                Tip("Use the same Wi-Fi on both. Guest networks often hide devices from each other.")
                 Tip("If macOS asked about Local Network access for M’AND, choose Allow (System Settings → Privacy & Security → Local Network).")
-                Tip("On the phone, keep M’AND unrestricted in the background (Settings → Apps → M’AND → Battery).")
-                Tip("Some routers block devices from seeing each other (“client isolation”). Try a home network or a phone hotspot.")
-                if case .listening(let port) = model.serverStatus {
-                    let addresses = LocalAddresses.privateIPv4()
-                    Text(addresses.isEmpty
-                         ? "This Mac isn’t on a local network right now."
-                         : "This Mac’s address: \(addresses.joined(separator: " or ")) (port \(port)). Enter it on the phone if it can’t find the Mac.")
+                if case .listening(let port) = model.serverStatus, !addresses.isEmpty {
+                    Text("If your phone still can’t find this Mac, type this address in M’AND on the phone: \(addresses.joined(separator: " or ")) (port \(port)).")
                         .font(.callout).foregroundStyle(.secondary).textSelection(.enabled)
                         .padding(.top, Theme.Space.xs)
                 }
             }
         }
+    }
+}
+
+/// A tick or a cross, in words as well as colour, with the fix when it failed.
+struct CheckRow: View {
+    let ok: Bool
+    let label: String
+    let fix: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: Theme.Space.s) {
+            Image(systemName: ok ? "checkmark.circle.fill" : "xmark.octagon.fill")
+                .foregroundStyle(ok ? Theme.positive : Theme.critical)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label)
+                if !ok { Text(fix).font(.callout).foregroundStyle(.secondary) }
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(label): \(ok ? "yes" : "no")\(ok ? "" : ". \(fix)")")
     }
 }
 

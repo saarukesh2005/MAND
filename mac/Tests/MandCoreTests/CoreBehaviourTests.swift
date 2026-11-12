@@ -59,6 +59,8 @@ struct EnvelopeCodecTests {
         .linkOpen(url: "https://example.com", title: "Example"), .linkOpen(url: "http://a.b/c", title: nil),
         .screenRequest, .screenStart(width: 1080, height: 2400),
         .screenFrame(seq: 7, key: true, data: Data([0, 0, 0, 1, 0x67, 0x42])), .screenStop(reason: "user"),
+        .controlTap(x: 0, y: 10_000), .controlSwipe(x1: 5_000, y1: 8_000, x2: 5_000, y2: 2_000, ms: 300),
+        .controlKey(.back), .controlState(available: true),
     ]
 
     @Test("Every message type round-trips", arguments: messages)

@@ -85,6 +85,15 @@ object EnvelopeCodec {
             storageFree = long(body["storageFree"], 0..Message.MAX_STORAGE_BYTES),
             storageTotal = long(body["storageTotal"], 0..Message.MAX_STORAGE_BYTES),
         )
+        "control.tap" -> Message.ControlTap(fraction(body["x"]), fraction(body["y"]))
+        "control.swipe" -> Message.ControlSwipe(
+            fraction(body["x1"]), fraction(body["y1"]), fraction(body["x2"]), fraction(body["y2"]),
+            long(body["ms"], 50L..3_000L).toInt(),
+        )
+        "control.key" -> Message.ControlKey(
+            Message.ControlKey.Key.entries.firstOrNull { it.wire == string(body["key"], 16) } ?: malformed(),
+        )
+        "control.state" -> Message.ControlState(boolean(body["available"]) ?: malformed())
         "screen.request" -> Message.ScreenRequest
         "screen.start" -> Message.ScreenStart(
             long(body["width"], 16L..Message.MAX_SCREEN_SIDE).toInt(),
@@ -137,6 +146,8 @@ object EnvelopeCodec {
 
     private fun tid(body: JsonObject): String =
         string(body["tid"], 64)?.takeIf { TID_PATTERN.matches(it) } ?: malformed()
+
+    private fun fraction(element: JsonElement?): Int = long(element, 0L..Message.CONTROL_SCALE).toInt()
 
     private fun long(element: JsonElement?, range: LongRange): Long =
         integer(element)?.takeIf { it in range } ?: malformed()
@@ -252,6 +263,13 @@ object EnvelopeCodec {
                 put("data", Base64Url.encode(message.data))
             }
             is Message.ScreenStop -> put("reason", message.reason)
+            is Message.ControlTap -> { put("x", message.x); put("y", message.y) }
+            is Message.ControlSwipe -> {
+                put("x1", message.x1); put("y1", message.y1); put("x2", message.x2); put("y2", message.y2)
+                put("ms", message.ms)
+            }
+            is Message.ControlKey -> put("key", message.key.wire)
+            is Message.ControlState -> put("available", message.available)
             Message.SessionReady, Message.Ping, Message.TapKnock, Message.FindRing, Message.FindStop,
             Message.ScreenRequest, is Message.Unknown -> Unit
         }

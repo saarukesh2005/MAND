@@ -49,14 +49,27 @@ struct WifiMirroringCard: View {
                         Button { model.stopPhoneScreen() } label: { Label("Stop", systemImage: "stop.fill") }
                             .controlSize(.large)
                     }
+                    let canControl = model.selected?.canControl == true
                     if let mirror = model.screenMirror {
                         ScreenLayerView(mirror: mirror)
+                            .overlay { if canControl { ControlSurface() } }
                             .aspectRatio(CGFloat(width) / CGFloat(max(height, 1)), contentMode: .fit)
                             .frame(maxWidth: .infinity, maxHeight: 640)
                             .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
                             .accessibilityLabel("Live picture of \(phone)’s screen")
                     }
-                    Text("View only. Use your phone to tap and type.").font(.callout).foregroundStyle(.secondary)
+                    if canControl {
+                        HStack(spacing: Theme.Space.s) {
+                            Button { model.pressPhoneKey(.back) } label: { Label("Back", systemImage: "chevron.backward") }
+                            Button { model.pressPhoneKey(.home) } label: { Label("Home", systemImage: "circle") }
+                            Button { model.pressPhoneKey(.recents) } label: { Label("Recent Apps", systemImage: "square.on.square") }
+                        }
+                        .controlSize(.large)
+                        Text("Click to tap. Drag to swipe or scroll.").font(.callout).foregroundStyle(.secondary)
+                    } else {
+                        Text("View only. To tap and swipe from this Mac, turn on “M’AND Tap to Send and control” in your phone’s Accessibility settings, then share again.")
+                            .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    }
                 }
             }
         }
@@ -178,6 +191,35 @@ private struct SetupCard: View {
                     Text("Using \(path)").font(.caption).foregroundStyle(.tertiary).textSelection(.enabled)
                 }
             }
+        }
+    }
+}
+
+/// Turns clicks and drags on the mirrored picture into taps and swipes on the phone.
+struct ControlSurface: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        GeometryReader { geometry in
+            Color.clear
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onEnded { drag in
+                            let size = geometry.size
+                            guard size.width > 0, size.height > 0 else { return }
+                            let start = drag.startLocation, end = drag.location
+                            let moved = hypot(end.x - start.x, end.y - start.y)
+                            if moved < 6 {
+                                model.tapPhone(atX: start.x / size.width, y: start.y / size.height)
+                            } else {
+                                let seconds = max(0.1, min(1.0, Double(moved / max(size.height, 1)) * 0.8))
+                                model.swipePhone(fromX: start.x / size.width, y1: start.y / size.height,
+                                                 toX: end.x / size.width, y2: end.y / size.height, seconds: seconds)
+                            }
+                        }
+                )
+                .accessibilityHidden(true) // VoiceOver users use the Back / Home / Recent Apps buttons
         }
     }
 }

@@ -76,6 +76,7 @@ These are new message types under protocol version 1. Older apps ignore them, as
 | `find.v1` | `find.ring`, `find.stop`, `find.state` |
 | `link.v1` | `link.open` |
 | `screen.v1` | `screen.request`, `screen.start`, `screen.frame`, `screen.stop` |
+| `control.v1` | `control.tap`, `control.swipe`, `control.key`, `control.state` |
 
 `device.v1` also carries `device.info` (added in 0.5; older Macs ignore it as an unknown type).
 
@@ -169,6 +170,21 @@ View only, over the existing encrypted connection. Nothing to install, no USB ca
 **Rules:**
 - **Phone:** shares only after the person approves Android's prompt, shows an ongoing "Showing your screen" notification with Stop, and drops frames (requesting a new key frame) instead of queueing when the network is slow.
 - **Mac:** ignores frames until the first key frame, and only accepts frames from the phone that sent `screen.start`.
+
+### Control from the Mac (`control.v1`)
+
+Taps, swipes and Back/Home/Recents on the phone, from the mirrored picture. Positions are fractions of the screen × 10,000 (0 = left/top, 10,000 = right/bottom), so the Mac never needs the phone's pixel size.
+
+| type | direction | body |
+|---|---|---|
+| `control.tap` | Mac → phone | `{x, y}` |
+| `control.swipe` | Mac → phone | `{x1, y1, x2, y2, ms}`; `ms` is 50–3,000 |
+| `control.key` | Mac → phone | `{key}`: `back`, `home` or `recents` |
+| `control.state` | phone → Mac | `{available}`: sent when screen sharing starts |
+
+**The phone acts only when both are true; otherwise it ignores every request:**
+1. It is sharing its screen with this Mac (`screen.v1`).
+2. The person has switched on M’AND's Accessibility service ("M’AND Tap to Send and control").
 
 ### Tap to Send (`tap.v1`)
 Touch the phone to the MacBook's notch to send what's on its screen. Adapted from TapDrop's light key (MIT, github.com/0x1p0/TapDrop): the Mac's ambient light sensor must see the phone's own screen turn white and then black, on cue.

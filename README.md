@@ -33,8 +33,8 @@ Get the latest version from **[Releases](https://github.com/saarukesh2005/MAND/r
 5. The first time, macOS asks to let M’AND use your Keychain (where its security key is kept). Enter your Mac password and click **Always Allow**.
 
 ### Pair
-1. Open M’AND on the Mac and click **Pair a Phone**. A QR code appears.
-2. In the phone app, tap **Pair with Mac** and scan the code.
+1. Open M’AND on the Mac and click **Pair a Phone**. A QR code appears. (No app on the phone yet? The pairing window also shows a QR code that opens the download page.)
+2. In the phone app, tap **Pair with Mac** and scan the code, or point your phone's camera at it.
 3. Click **Allow** on the Mac.
 
 Both devices must be on the same Wi-Fi.
@@ -58,7 +58,8 @@ Every sharing feature starts **off** until you turn it on.
 | **Tap to Send** (experimental): hold the phone against the MacBook notch to send what's on screen | ✅ | ✅ |
 | **SMS one-time codes** go to the Mac clipboard | ✅ | ✅ |
 | **Quick Share receive** (unofficial, off by default) | ✅ | built into Android |
-| **Screen mirroring** with the free [scrcpy](https://github.com/Genymobile/scrcpy) (USB) | ✅ | needs USB debugging |
+| **See your phone's screen on the Mac**: built in, over Wi-Fi, nothing to install (view only). Your phone asks first every time | ✅ | ✅ |
+| Advanced: USB mirroring with control, using the free [scrcpy](https://github.com/Genymobile/scrcpy) | ✅ | needs USB debugging |
 
 **Honest status:**
 - Tested by the author on a Pixel 7a: pairing, files, clipboard, notifications and battery.
@@ -69,6 +70,15 @@ Every sharing feature starts **off** until you turn it on.
 - It reads the MacBook's notch light sensor through an undocumented macOS interface, so a macOS update could break it. It needs a MacBook with a notch and the lid open.
 - On the phone, it needs **M’AND Tap to Send** turned on in Accessibility settings. If Android greys it out, open **App info → ⋮ → Allow restricted settings** first.
 - It stays paused while banking and UPI apps are open.
+
+## Can't connect?
+
+Both apps run a **connection check** that shows exactly what's wrong:
+- whether the phone is on Wi-Fi
+- whether it can see your Mac
+- whether the Mac is ready
+
+Most problems are a different Wi-Fi network (guest networks hide devices from each other) or a declined macOS prompt. If macOS asks for your password for "M’AND paired devices", enter it and click **Always Allow**. Your phone stays paired, and connects as soon as that's done.
 
 ## Made for everyone
 

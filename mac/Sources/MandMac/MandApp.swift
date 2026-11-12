@@ -1,4 +1,5 @@
 import AppKit
+import MandCore
 import MandMacKit
 import SwiftUI
 
@@ -78,6 +79,19 @@ struct MenuBarContent: View {
             }
             Button("Send Clipboard to Phone") { model.sendClipboard() }
                 .disabled(!model.settings.clipboardEnabled)
+            if model.selected?.isRinging == true {
+                Button("Stop Ringing Phone") { model.stopRingingPhone() }
+            } else {
+                Button("Find My Phone") { model.ringPhone() }
+                    .disabled(!model.phoneSupports(Feature.find))
+            }
+            Button("See Phone Screen") {
+                ui.section = .mirroring
+                openWindow(id: "main")
+                NSApp.activate()
+                model.startPhoneScreen()
+            }
+            .disabled(!model.phoneSupports(Feature.screen))
         }
         Button("Pair a Phone…") {
             ui.section = .home

@@ -13,7 +13,8 @@ object Feature {
     const val FIND = "find.v1"
     const val LINK = "link.v1"
     const val SCREEN = "screen.v1"
-    val ALL = listOf(FILES, CLIPBOARD, DEVICE, NOTIFICATIONS, CALLS, TAP, FIND, LINK, SCREEN)
+    const val CONTROL = "control.v1"
+    val ALL = listOf(FILES, CLIPBOARD, DEVICE, NOTIFICATIONS, CALLS, TAP, FIND, LINK, SCREEN, CONTROL)
 }
 
 /** The `hello` body (protocol §3). */
@@ -84,6 +85,13 @@ sealed class Message(val type: String) {
         override fun hashCode() = seq.hashCode() * 31 + key.hashCode()
     }
     data class ScreenStop(val reason: String) : Message("screen.stop")
+    /** Positions are fractions of the screen × [CONTROL_SCALE] (0 = left/top). */
+    data class ControlTap(val x: Int, val y: Int) : Message("control.tap")
+    data class ControlSwipe(val x1: Int, val y1: Int, val x2: Int, val y2: Int, val ms: Int) : Message("control.swipe")
+    data class ControlKey(val key: Key) : Message("control.key") {
+        enum class Key(val wire: String) { BACK("back"), HOME("home"), RECENTS("recents") }
+    }
+    data class ControlState(val available: Boolean) : Message("control.state")
     data class Unknown(val unknownType: String) : Message(unknownType)
 
     enum class CallState(val wire: String) { RINGING("ringing"), ACTIVE("active"), IDLE("idle") }
@@ -99,6 +107,7 @@ sealed class Message(val type: String) {
         /** One encoded video frame (H.264 Annex B) in `screen.frame`; fits a 1 MiB frame after base64. */
         const val MAX_SCREEN_FRAME_BYTES = 600_000
         const val MAX_SCREEN_SIDE = 4_096
+        const val CONTROL_SCALE = 10_000
     }
 }
 

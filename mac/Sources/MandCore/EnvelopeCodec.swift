@@ -88,6 +88,18 @@ public enum EnvelopeCodec {
                 os: try requiredString(body["os"], maxBytes: 64),
                 storageFree: try int64(body["storageFree"], in: 0...Message.maxStorageBytes),
                 storageTotal: try int64(body["storageTotal"], in: 0...Message.maxStorageBytes)))
+        case "control.tap":
+            return .controlTap(x: try fraction(body["x"]), y: try fraction(body["y"]))
+        case "control.swipe":
+            return .controlSwipe(x1: try fraction(body["x1"]), y1: try fraction(body["y1"]),
+                                 x2: try fraction(body["x2"]), y2: try fraction(body["y2"]),
+                                 ms: Int(try int64(body["ms"], in: 50...3_000)))
+        case "control.key":
+            guard let raw = body["key"] as? String, let key = Message.ControlKey(rawValue: raw) else { throw .malformed }
+            return .controlKey(key)
+        case "control.state":
+            guard let available = boolean(body["available"]) else { throw .malformed }
+            return .controlState(available: available)
         case "screen.request": return .screenRequest
         case "screen.start":
             return .screenStart(width: Int(try int64(body["width"], in: 16...Int64(Message.maxScreenSide))),
@@ -156,6 +168,10 @@ public enum EnvelopeCodec {
 
     static func isSHA256Hex(_ text: String) -> Bool {
         text.utf8.count == 64 && text.allSatisfy(hexCharacters.contains)
+    }
+
+    private static func fraction(_ value: Any?) throws(ProtocolError) -> Int {
+        Int(try int64(value, in: 0...Int64(Message.controlScale)))
     }
 
     private static func int64(_ value: Any?, in range: ClosedRange<Int64>) throws(ProtocolError) -> Int64 {
@@ -229,6 +245,10 @@ public enum EnvelopeCodec {
         case .screenStart(let width, let height): ["width": width, "height": height]
         case .screenFrame(let seq, let key, let data): ["seq": seq, "key": key, "data": data.base64URLEncoded]
         case .screenStop(let reason): ["reason": reason]
+        case .controlTap(let x, let y): ["x": x, "y": y]
+        case .controlSwipe(let x1, let y1, let x2, let y2, let ms): ["x1": x1, "y1": y1, "x2": x2, "y2": y2, "ms": ms]
+        case .controlKey(let key): ["key": key.rawValue]
+        case .controlState(let available): ["available": available]
         case .deviceInfo(let info):
             ["model": info.model, "os": info.os, "storageFree": info.storageFree, "storageTotal": info.storageTotal]
         case .findState(let ringing): ["ringing": ringing]
