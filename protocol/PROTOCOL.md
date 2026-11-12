@@ -75,6 +75,7 @@ These are new message types under protocol version 1. Older apps ignore them, as
 | `tap.v1` | `tap.grab`, `tap.light`, `tap.seen`, `tap.result`, `tap.knock`, `tap.decline` |
 | `find.v1` | `find.ring`, `find.stop`, `find.state` |
 | `link.v1` | `link.open` |
+| `screen.v1` | `screen.request`, `screen.start`, `screen.frame`, `screen.stop` |
 
 `device.v1` also carries `device.info` (added in 0.5; older Macs ignore it as an unknown type).
 
@@ -153,6 +154,21 @@ The phone stops by itself after 60 seconds, or when the user presses Stop on the
 **Receivers:**
 - **Mac:** opens the link in the default browser, or puts it on the clipboard (a setting).
 - **Phone:** shows a notification that opens the link when tapped. Android doesn't allow opening pages from the background.
+
+### Built-in screen mirroring (`screen.v1`)
+
+View only, over the existing encrypted connection. Nothing to install, no USB cable, no developer options.
+
+| type | direction | body |
+|---|---|---|
+| `screen.request` | Mac → phone | `{}`: ask to share. The phone shows a notification; Android's own consent prompt ("Start now") decides |
+| `screen.start` | phone → Mac | `{width, height}`: encoded picture size, each side 16–4,096 |
+| `screen.frame` | phone → Mac | `{seq, key, data}`: one H.264 access unit (Annex B). Key frames carry SPS/PPS. `seq` is 0–2^53; `data` is 1–600,000 bytes, base64url |
+| `screen.stop` | either | `{reason}` (≤64 bytes): `user`, `phone`, `declined`, `disconnected`, `failed`, `mac` |
+
+**Rules:**
+- **Phone:** shares only after the person approves Android's prompt, shows an ongoing "Showing your screen" notification with Stop, and drops frames (requesting a new key frame) instead of queueing when the network is slow.
+- **Mac:** ignores frames until the first key frame, and only accepts frames from the phone that sent `screen.start`.
 
 ### Tap to Send (`tap.v1`)
 Touch the phone to the MacBook's notch to send what's on its screen. Adapted from TapDrop's light key (MIT, github.com/0x1p0/TapDrop): the Mac's ambient light sensor must see the phone's own screen turn white and then black, on cue.

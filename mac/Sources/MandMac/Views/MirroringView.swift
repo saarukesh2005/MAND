@@ -1,12 +1,94 @@
+import MandCore
 import AppKit
 import MandMacKit
 import SwiftUI
 
+/// Screen mirroring: built in over Wi-Fi first (nothing to install), USB/scrcpy as an advanced option.
 struct MirroringView: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
         ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                WifiMirroringCard()
+                UsbMirroringSection()
+            }
+            .padding(24)
+            .frame(maxWidth: 820, alignment: .leading)
+        }
+    }
+}
+
+/// Built-in mirroring: one button, Android asks the person to confirm, the picture appears here.
+struct WifiMirroringCard: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        Card(title: "See your phone’s screen", subtitle: "Over Wi-Fi. Nothing to install and no cable. Your phone always asks first.") {
+            VStack(alignment: .leading, spacing: Theme.Space.m) {
+                switch model.screenState {
+                case .idle, .ended:
+                    if case .ended(let message) = model.screenState { NoticeLine(text: message) }
+                    Button { model.startPhoneScreen() } label: {
+                        Label("Show Phone Screen", systemImage: "rectangle.on.rectangle")
+                    }
+                    .buttonStyle(.borderedProminent).tint(Theme.accent).controlSize(.large)
+                    .disabled(!model.phoneSupports(Feature.screen))
+                    if !model.isConnected {
+                        Text("Connect your phone first.").foregroundStyle(.secondary)
+                    } else if !model.phoneSupports(Feature.screen) {
+                        Text("Update M’AND on your phone to use this.").foregroundStyle(.secondary)
+                    }
+                case .asking(let phone):
+                    NoticeLine(text: "Look at \(phone): tap the M’AND notification, then “Start now”.", symbol: "hand.point.up.left")
+                    Button("Cancel") { model.stopPhoneScreen() }
+                case .showing(let phone, let width, let height, let hasPicture):
+                    HStack {
+                        Text(hasPicture ? "Showing \(phone)" : "Waiting for the first picture…").font(.headline)
+                        Spacer()
+                        Button { model.stopPhoneScreen() } label: { Label("Stop", systemImage: "stop.fill") }
+                            .controlSize(.large)
+                    }
+                    if let mirror = model.screenMirror {
+                        ScreenLayerView(mirror: mirror)
+                            .aspectRatio(CGFloat(width) / CGFloat(max(height, 1)), contentMode: .fit)
+                            .frame(maxWidth: .infinity, maxHeight: 640)
+                            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
+                            .accessibilityLabel("Live picture of \(phone)’s screen")
+                    }
+                    Text("View only. Use your phone to tap and type.").font(.callout).foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+}
+
+/// Hosts the mirror's AVSampleBufferDisplayLayer.
+struct ScreenLayerView: NSViewRepresentable {
+    let mirror: ScreenMirror
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        view.wantsLayer = true
+        view.layer = CALayer()
+        view.layer?.backgroundColor = .black
+        mirror.layer.frame = view.bounds
+        mirror.layer.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
+        view.layer?.addSublayer(mirror.layer)
+        return view
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        mirror.layer.frame = view.bounds
+    }
+}
+
+/// The original USB mirroring with scrcpy (needs a cable and USB debugging; allows control).
+struct UsbMirroringSection: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        DisclosureGroup("Advanced: mirror over USB with control (needs scrcpy)") {
             VStack(alignment: .leading, spacing: 20) {
                 Card {
                     HStack(spacing: 16) {
@@ -31,8 +113,7 @@ struct MirroringView: View {
                 ControlCard()
                 SetupCard()
             }
-            .padding(24)
-            .frame(maxWidth: 820, alignment: .leading)
+            .padding(.top, 12)
         }
         .onAppear { model.refreshMirroring() }
     }

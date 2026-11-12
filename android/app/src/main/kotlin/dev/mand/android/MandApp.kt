@@ -40,7 +40,8 @@ class MandApp : Application() {
         find = dev.mand.android.find.FindPhone(this, client)
         links = dev.mand.android.link.LinkBridge(this, client)
         val battery = BatteryReporter(this, client)
-        listOf(files, clipboard, notifications, battery, calls, dev.mand.android.tap.TapBridge(this), find, links)
+        listOf(files, clipboard, notifications, battery, calls, dev.mand.android.tap.TapBridge(this), find, links,
+            dev.mand.android.screen.ScreenBridge(this))
             .forEach(client::register)
         battery.start()
         // Start watching call state once saved settings are loaded (only if the user turned it on).

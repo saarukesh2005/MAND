@@ -10,5 +10,12 @@
     <string name="find_text">Tap here or press Stop to end the sound.</string>
     <string name="find_stop">Stop</string>
     <string name="channel_links">Links from your Mac</string>
+    <string name="channel_screen">Screen sharing</string>
+    <string name="channel_screen_ask">Screen sharing requests</string>
+    <string name="screen_sharing_title">Showing your screen on your Mac</string>
+    <string name="screen_sharing_text">Only your Mac can see it. Tap Stop to end.</string>
+    <string name="screen_stop">Stop</string>
+    <string name="screen_ask_title">Your Mac wants to see your screen</string>
+    <string name="screen_ask_text">Tap here, then “Start now”. You can stop at any time.</string>
     <string name="link_title">Open link from your Mac</string>
 </resources>

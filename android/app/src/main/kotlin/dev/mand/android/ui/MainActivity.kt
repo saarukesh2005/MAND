@@ -49,6 +49,8 @@ class MainActivity : ComponentActivity() {
     /** Set when pairing was asked for before Android's "find devices" permission; pairing continues once it's allowed. */
     private var pairAfterPermission = false
     private var scanProblem by mutableStateOf<String?>(null)
+    /** A pairing link opened from the Camera app (or a browser); paired only after the user confirms. */
+    private var pairLink by mutableStateOf<Pair<String, String>?>(null)
     private var pendingCallResult: ((Boolean) -> Unit)? = null
 
     private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
@@ -58,6 +60,10 @@ class MainActivity : ComponentActivity() {
     private val localNetworkPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) {
             client.retryNow()
+            pendingPairText?.let { text ->
+                pendingPairText = null
+                pairFromText(text)
+            }
             if (pairAfterPermission) {
                 pairAfterPermission = false
                 launchScanner()
@@ -79,13 +85,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private val scanner = registerForActivityResult(ScanContract()) { result ->
-        result.contents?.let { text ->
-            if (client.pair(text)) {
-                BridgeService.start(this)
-            } else {
-                scanProblem = "That isn’t an M’AND code. On your Mac, open M’AND and click “Pair a Phone”, then scan the code shown there."
-            }
-        }
+        result.contents?.let(::pairFromText)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -96,6 +96,7 @@ class MainActivity : ComponentActivity() {
             phoneCode = withContext(Dispatchers.Default) { KeystoreIdentity.fingerprint().shortDisplay }
         }
 
+        handlePairLink(intent)
         setContent {
             MandTheme {
                 val prefs by app.settings.prefs.collectAsStateWithLifecycle()
@@ -154,6 +155,30 @@ class MainActivity : ComponentActivity() {
                         },
                     )
                 }
+                pairLink?.let { (link, macName) ->
+                    androidx.compose.material3.AlertDialog(
+                        onDismissRequest = { pairLink = null },
+                        title = { androidx.compose.material3.Text("Pair with “$macName”?") },
+                        text = {
+                            androidx.compose.material3.Text(
+                                "Only continue if you just clicked “Pair a Phone” in M’AND on your own Mac. " +
+                                    "You’ll then click Allow on the Mac.",
+                            )
+                        },
+                        confirmButton = {
+                            androidx.compose.material3.TextButton(onClick = {
+                                pairLink = null
+                                app.settings.setOnboardingDone()
+                                pairFromText(link)
+                            }) { androidx.compose.material3.Text("Pair") }
+                        },
+                        dismissButton = {
+                            androidx.compose.material3.TextButton(onClick = { pairLink = null }) {
+                                androidx.compose.material3.Text("Cancel")
+                            }
+                        },
+                    )
+                }
                 scanProblem?.let { problem ->
                     androidx.compose.material3.AlertDialog(
                         onDismissRequest = { scanProblem = null },
@@ -189,6 +214,40 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handlePairLink(intent)
+    }
+
+    private fun handlePairLink(intent: Intent?) {
+        val data = intent?.data ?: return
+        if (intent.action != Intent.ACTION_VIEW || data.scheme != "mand" || data.host != "pair") return
+        val text = data.toString()
+        val invitation = runCatching { dev.mand.core.PairingInvitation.parse(text) }.getOrNull()
+        when {
+            invitation == null -> scanProblem = NOT_A_CODE
+            invitation.isExpired() -> scanProblem = "That pairing code has expired. On your Mac, click “Pair a Phone” again for a new one."
+            else -> pairLink = text to invitation.name
+        }
+        setIntent(Intent(this, MainActivity::class.java)) // don't re-handle on rotation
+    }
+
+    private fun pairFromText(text: String) {
+        if (!LocalNetworkAccess.isGranted(this)) {
+            pendingPairText = text
+            requestLocalNetwork()
+            return
+        }
+        if (client.pair(text)) BridgeService.start(this) else scanProblem = NOT_A_CODE
+    }
+
+    private var pendingPairText: String? = null
+
+    private companion object {
+        const val NOT_A_CODE =
+            "That isn’t an M’AND code, or it has expired. On your Mac, open M’AND and click “Pair a Phone”, then scan the code shown there."
     }
 
     override fun onResume() {

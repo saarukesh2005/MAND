@@ -644,6 +644,66 @@
       "json": "{\"v\":1,\"type\":\"link.open\",\"id\":\"n16\",\"ts\":1,\"body\":{\"url\":\"https://example.com/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}}",
       "expect": "error",
       "code": "malformed"
+    },
+    {
+      "name": "screen.request",
+      "json": "{\"v\":1,\"type\":\"screen.request\",\"id\":\"s0\",\"ts\":1,\"body\":{}}",
+      "expect": "ok",
+      "type": "screen.request"
+    },
+    {
+      "name": "screen.start",
+      "json": "{\"v\":1,\"type\":\"screen.start\",\"id\":\"s1\",\"ts\":1,\"body\":{\"width\":1080,\"height\":2400}}",
+      "expect": "ok",
+      "type": "screen.start"
+    },
+    {
+      "name": "screen.start too small",
+      "json": "{\"v\":1,\"type\":\"screen.start\",\"id\":\"s2\",\"ts\":1,\"body\":{\"width\":8,\"height\":2400}}",
+      "expect": "error",
+      "code": "malformed"
+    },
+    {
+      "name": "screen.start too big",
+      "json": "{\"v\":1,\"type\":\"screen.start\",\"id\":\"s3\",\"ts\":1,\"body\":{\"width\":1080,\"height\":9000}}",
+      "expect": "error",
+      "code": "malformed"
+    },
+    {
+      "name": "screen.frame key",
+      "json": "{\"v\":1,\"type\":\"screen.frame\",\"id\":\"s4\",\"ts\":1,\"body\":{\"seq\":0,\"key\":true,\"data\":\"AAAAAWdC\"}}",
+      "expect": "ok",
+      "type": "screen.frame"
+    },
+    {
+      "name": "screen.frame empty data",
+      "json": "{\"v\":1,\"type\":\"screen.frame\",\"id\":\"s5\",\"ts\":1,\"body\":{\"seq\":1,\"key\":false,\"data\":\"\"}}",
+      "expect": "error",
+      "code": "malformed"
+    },
+    {
+      "name": "screen.frame negative seq",
+      "json": "{\"v\":1,\"type\":\"screen.frame\",\"id\":\"s6\",\"ts\":1,\"body\":{\"seq\":-1,\"key\":false,\"data\":\"AAAAAWdC\"}}",
+      "expect": "error",
+      "code": "malformed"
+    },
+    {
+      "name": "screen.frame key not boolean",
+      "json": "{\"v\":1,\"type\":\"screen.frame\",\"id\":\"s7\",\"ts\":1,\"body\":{\"seq\":1,\"key\":1,\"data\":\"AAAAAWdC\"}}",
+      "expect": "error",
+      "code": "malformed"
+    },
+    {
+      "name": "screen.stop",
+      "json": "{\"v\":1,\"type\":\"screen.stop\",\"id\":\"s8\",\"ts\":1,\"body\":{\"reason\":\"user\"}}",
+      "expect": "ok",
+      "type": "screen.stop"
+    },
+    {
+      "name": "screen.stop missing reason",
+      "json": "{\"v\":1,\"type\":\"screen.stop\",\"id\":\"s9\",\"ts\":1,\"body\":{}}",
+      "expect": "error",
+      "code": "malformed"
     }
   ],
   "versionNegotiation": [

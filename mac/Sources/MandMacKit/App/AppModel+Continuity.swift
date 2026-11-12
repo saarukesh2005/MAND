@@ -62,6 +62,14 @@ extension AppModel {
         }
     }
 
+    // MARK: - Recovery
+
+    /// Reads the paired-phone list again (after the user allowed Keychain access).
+    public func retryTrustedList() {
+        trustedListProblem = nil
+        server?.reloadDevices()
+    }
+
     // MARK: - Renaming
 
     /// Gives a paired phone a name on this Mac. An empty name goes back to the phone's own name.

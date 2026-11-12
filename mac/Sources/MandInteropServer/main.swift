@@ -19,13 +19,38 @@ signal(SIGTERM) { _ in unlink(keychainPath); exit(0) }
 signal(SIGINT) { _ in unlink(keychainPath); exit(0) }
 
 let identity = try DeviceIdentity.loadOrCreate(label: "M’AND Interop Mac", keychain: keychain, commonName: "Interop Mac")
-final class Box: @unchecked Sendable { var server: BridgeServer? }
+final class Box: @unchecked Sendable {
+    var server: BridgeServer?
+    var windowOpened = false
+    var listening = false
+    var listLoaded = false
+    /// Pairing opens once the server listens AND the trusted list has loaded (they finish in either order).
+    func openWhenReady() {
+        guard listening, listLoaded, !windowOpened else { return }
+        windowOpened = true
+        server?.openPairingWindow()
+    }
+    var frames = 0
+    var decoded = 0
+    var depacketizer = H264Depacketizer()
+}
+// Optional settings for running against an emulator or a phone: MAND_HOSTS (comma-separated addresses put
+// in the QR invite), MAND_PORT (listen port), MAND_TEST_SCREEN=1 (ask the phone to share its screen).
+let env = ProcessInfo.processInfo.environment
+let hosts = env["MAND_HOSTS"].map { $0.split(separator: ",").map(String.init) } ?? ["127.0.0.1"]
+let port = env["MAND_PORT"].flatMap(UInt16.init) ?? 0
+let askForScreen = env["MAND_TEST_SCREEN"] == "1"
 let box = Box()
 let server = BridgeServer(identity: identity, store: InMemoryPairedDeviceStore(), deviceName: "Interop Mac",
-                          preferredPort: 0, advertise: false, addresses: { ["127.0.0.1"] }) { event in
+                          preferredPort: port, advertise: false, addresses: { hosts }) { event in
     switch event {
-    case .listening:
-        box.server?.openPairingWindow()
+    case .listening(let port):
+        print("LISTENING \(port)")
+        box.server?.queue.async { box.listening = true; box.openWhenReady() }
+    case .devicesChanged:
+        box.server?.queue.async { box.listLoaded = true; box.openWhenReady() }
+    case .pairingUnavailable(let reason):
+        print("PAIRING UNAVAILABLE \(reason)")
     case .pairingWindowOpened(let invitation):
         print("INVITE \(invitation.url)")
     case .approvalNeeded(let request):
@@ -33,6 +58,7 @@ let server = BridgeServer(identity: identity, store: InMemoryPairedDeviceStore()
         box.server?.resolvePairing(id: request.id, approved: true)
     case .phoneConnected(let device, _, let features):
         print("CONNECTED \(device.name) features=\(features.sorted().joined(separator: ","))")
+        if askForScreen { box.server?.send(.screenRequest, to: device.fingerprint) }
     case .phoneDisconnected(_, let reason):
         print("DISCONNECTED \(reason)")
     case .textReceived(let text, let device):
@@ -44,6 +70,17 @@ let server = BridgeServer(identity: identity, store: InMemoryPairedDeviceStore()
         case .deviceStatus(let battery, let charging):
             box.server?.sendText("battery:\(battery):\(charging)", to: device.fingerprint)
         case .callState(.ringing, _): box.server?.send(.callAction(.decline), to: device.fingerprint)
+        case .deviceInfo(let info): print("INFO \(info.model) | \(info.os) | free=\(info.storageFree) total=\(info.storageTotal)")
+        case .linkOpen(let url, _): print("LINK \(url)")
+        case .findState(let ringing): print("FIND ringing=\(ringing)")
+        case .screenStart(let w, let h): print("SCREEN START \(w)x\(h)")
+        case .screenStop(let reason): print("SCREEN STOP \(reason)")
+        case .screenFrame(_, let key, let data):
+            box.frames += 1
+            if (try? box.depacketizer.sampleBuffer(for: data, key: key)) != nil { box.decoded += 1 }
+            if box.frames == 1 || box.frames % 30 == 0 {
+                print("SCREEN FRAMES \(box.frames) decodable=\(box.decoded) last=\(data.count)B key=\(key)")
+            }
         default: break
         }
     case .listenerFailed(let reason):

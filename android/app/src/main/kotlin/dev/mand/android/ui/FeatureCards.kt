@@ -55,7 +55,7 @@ import dev.mand.core.Friendly
 @Composable
 fun FeatureCards(app: MandApp, connected: Boolean, notificationAccess: Boolean, actions: FeatureActions, tapEnabled: Boolean = false) {
     FilesCard(app, connected, actions)
-    FindAndLinksCard()
+    FindAndLinksCard(connected)
     ClipboardCard(app, connected)
     NotificationsCard(app, notificationAccess, actions)
     CallsCard(app, actions)
@@ -99,11 +99,17 @@ private fun FilesCard(app: MandApp, connected: Boolean, actions: FeatureActions)
 }
 
 @Composable
-private fun FindAndLinksCard() {
+private fun FindAndLinksCard(connected: Boolean) {
+    val context = LocalContext.current
     SectionCard(
-        title = "Find my phone and links",
+        title = "Screen, links and find my phone",
         subtitle = "Lost your phone nearby? On your Mac, click “Find My Phone” and it rings loudly, even on silent.",
     ) {
+        OutlinedButton(
+            onClick = { context.startActivity(android.content.Intent(context, dev.mand.android.screen.ScreenShareActivity::class.java)) },
+            enabled = connected,
+        ) { Text("Show my screen on Mac") }
+        Hint(if (connected) "Your Mac shows your screen over Wi-Fi. Android asks you first, every time." else "Connect to your Mac first to show your screen.")
         Hint("To open a web page on your Mac: in your browser tap Share → M’AND.")
         Hint("Links sent from your Mac appear as a notification here. Tap it to open the page.")
     }

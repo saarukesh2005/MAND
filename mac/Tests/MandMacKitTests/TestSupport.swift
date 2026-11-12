@@ -36,6 +36,7 @@ final class Recorder<T: Sendable>: @unchecked Sendable {
 
     func append(_ item: T) { lock.withLock { items.append(item) } }
     var all: [T] { lock.withLock { items } }
+    func clear() { lock.withLock { items.removeAll() } }
 
     /// Polls until `predicate` finds a match or the timeout passes.
     func wait<R>(timeout: TimeInterval = 10, _ predicate: (T) -> R?) async -> R? {

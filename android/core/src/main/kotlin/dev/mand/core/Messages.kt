@@ -12,7 +12,8 @@ object Feature {
     const val TAP = "tap.v1"
     const val FIND = "find.v1"
     const val LINK = "link.v1"
-    val ALL = listOf(FILES, CLIPBOARD, DEVICE, NOTIFICATIONS, CALLS, TAP, FIND, LINK)
+    const val SCREEN = "screen.v1"
+    val ALL = listOf(FILES, CLIPBOARD, DEVICE, NOTIFICATIONS, CALLS, TAP, FIND, LINK, SCREEN)
 }
 
 /** The `hello` body (protocol §3). */
@@ -75,6 +76,14 @@ sealed class Message(val type: String) {
     data object FindStop : Message("find.stop")
     data class FindState(val ringing: Boolean) : Message("find.state")
     data class LinkOpen(val url: String, val title: String?) : Message("link.open")
+    data object ScreenRequest : Message("screen.request")
+    data class ScreenStart(val width: Int, val height: Int) : Message("screen.start")
+    class ScreenFrame(val seq: Long, val key: Boolean, val data: ByteArray) : Message("screen.frame") {
+        override fun equals(other: Any?) =
+            other is ScreenFrame && seq == other.seq && key == other.key && data.contentEquals(other.data)
+        override fun hashCode() = seq.hashCode() * 31 + key.hashCode()
+    }
+    data class ScreenStop(val reason: String) : Message("screen.stop")
     data class Unknown(val unknownType: String) : Message(unknownType)
 
     enum class CallState(val wire: String) { RINGING("ringing"), ACTIVE("active"), IDLE("idle") }
@@ -87,6 +96,9 @@ sealed class Message(val type: String) {
         const val MAX_FILE_CHUNK_BYTES = 196_608
         const val MAX_FILE_SIZE = 1L shl 40
         const val MAX_STORAGE_BYTES = 1L shl 50
+        /** One encoded video frame (H.264 Annex B) in `screen.frame`; fits a 1 MiB frame after base64. */
+        const val MAX_SCREEN_FRAME_BYTES = 600_000
+        const val MAX_SCREEN_SIDE = 4_096
     }
 }
 

@@ -88,6 +88,17 @@ public enum EnvelopeCodec {
                 os: try requiredString(body["os"], maxBytes: 64),
                 storageFree: try int64(body["storageFree"], in: 0...Message.maxStorageBytes),
                 storageTotal: try int64(body["storageTotal"], in: 0...Message.maxStorageBytes)))
+        case "screen.request": return .screenRequest
+        case "screen.start":
+            return .screenStart(width: Int(try int64(body["width"], in: 16...Int64(Message.maxScreenSide))),
+                                height: Int(try int64(body["height"], in: 16...Int64(Message.maxScreenSide))))
+        case "screen.frame":
+            guard let key = boolean(body["key"]), let text = body["data"] as? String,
+                  text.utf8.count <= Message.maxScreenFrameBytes * 4 / 3 + 4,
+                  let data = Data(base64URL: text), !data.isEmpty, data.count <= Message.maxScreenFrameBytes
+            else { throw .malformed }
+            return .screenFrame(seq: try int64(body["seq"], in: 0...(1 << 53)), key: key, data: data)
+        case "screen.stop": return .screenStop(reason: try requiredString(body["reason"], maxBytes: 64))
         case "find.ring": return .findRing
         case "find.stop": return .findStop
         case "find.state":
@@ -214,7 +225,10 @@ public enum EnvelopeCodec {
         case .callState(let state, let caller):
             caller.map { ["state": state.rawValue, "caller": $0] } ?? ["state": state.rawValue]
         case .callAction(let action): ["action": action.rawValue]
-        case .tapKnock, .findRing, .findStop: [:]
+        case .tapKnock, .findRing, .findStop, .screenRequest: [:]
+        case .screenStart(let width, let height): ["width": width, "height": height]
+        case .screenFrame(let seq, let key, let data): ["seq": seq, "key": key, "data": data.base64URLEncoded]
+        case .screenStop(let reason): ["reason": reason]
         case .deviceInfo(let info):
             ["model": info.model, "os": info.os, "storageFree": info.storageFree, "storageTotal": info.storageTotal]
         case .findState(let ringing): ["ringing": ringing]

@@ -100,6 +100,15 @@ Last updated: 2026-11-12.
 | Usability pass (Mac): big labelled action tiles, plain-language status, on/off switches on Home, link sheet, rename | IMPLEMENTED | n/a | builds; VoiceOver labels/hints on every tile; announcements for status lines |
 | Accessibility pass (Android, WCAG 2.2 AA audit) | n/a | IMPLEMENTED | rows are single switch/checkbox controls (TalkBack), AA contrast mint #0F7A55, scrollable onboarding at 200 % font, wrapping button rows, live-region status, labelled text fields, plain wording, "Open settings" on refused permissions, wrong-QR message |
 
+## 07c Connection reliability and built-in mirroring (v0.6.0, 2026-11-12)
+| Feature | Mac | Android | Evidence / notes |
+|---|---|---|---|
+| Keychain prompt can no longer break pairing: listener starts at once; unreadable trusted list → phones asked to retry (never told "not paired"); list never overwritten; "Try Again" card | TESTED | n/a | BridgeServerTests.unreadableTrustedList |
+| Reconnect at once when the Mac appears on Wi-Fi / network changes / app opened (backoff resets) | n/a | IMPLEMENTED | builds; emulator run below |
+| Pair from the phone's camera app (`mand://pair` link, confirm dialog) | n/a | IMPLEMENTED | |
+| Get-the-app QR on the Mac's pairing sheet | IMPLEMENTED | n/a | |
+| Built-in Wi-Fi screen mirroring (`screen.v1`, MediaProjection → H.264 → AVSampleBufferDisplayLayer), view only | IMPLEMENTED | IMPLEMENTED | H264Tests (4), shared vectors (10); USB/scrcpy kept as Advanced |
+
 ## 08 Tap to Send (from TapDrop, github.com/0x1p0/TapDrop, MIT — added 2026-11-12)
 | Feature | Mac | Android | Evidence / notes |
 |---|---|---|---|

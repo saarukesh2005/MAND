@@ -40,6 +40,8 @@ public final class BridgeServer: @unchecked Sendable {
         /// A feature message (files, clipboard, device, notifications, calls) from a connected phone.
         case featureMessage(Message, from: PairedDevice)
         case phoneDisconnected(PairedDevice, reason: String)
+        /// The paired-phone list couldn't be read (e.g. a Keychain prompt was declined); nil once it's readable.
+        case trustedListProblem(String?)
         /// Round-trip time of the latest ping to a connected phone.
         case latency(PairedDevice, milliseconds: Int)
         case textReceived(String, from: PairedDevice)
@@ -58,6 +60,8 @@ public final class BridgeServer: @unchecked Sendable {
     private var listener: NWListener?
     private var timer: DispatchSourceTimer?
     private var devices: [PairedDevice] = []
+    /// False until the stored trusted list has been read successfully.
+    private var devicesLoaded = false
     private var sessions: [UUID: Session] = [:]
     /// One live session per paired phone (several phones can be connected at once).
     private var activeSessions: [Fingerprint: UUID] = [:]
@@ -82,14 +86,32 @@ public final class BridgeServer: @unchecked Sendable {
 
     public func start() {
         queue.async {
-            do {
-                self.devices = try self.store.load()
-            } catch {
-                self.emit(.log("Could not read paired devices: \(error)"))
-            }
-            self.emit(.devicesChanged(self.devices))
+            // Listen straight away; the trusted list loads separately because reading it can wait on a
+            // Keychain prompt. Until it's loaded, phones are asked to try again — never told they're unknown.
             self.startListener(port: self.preferredPort)
             self.startTimer()
+            self.reloadDevices()
+        }
+    }
+
+    /// Reads the trusted-phone list (again). Safe to call any time, e.g. after the user allowed Keychain access.
+    public func reloadDevices() {
+        let store = self.store
+        DispatchQueue.global(qos: .userInitiated).async {
+            let result = Result { try store.load() }
+            self.queue.async {
+                switch result {
+                case .success(let loaded):
+                    self.devices = loaded
+                    self.devicesLoaded = true
+                    self.emit(.trustedListProblem(nil))
+                    self.emit(.devicesChanged(loaded))
+                case .failure(let error):
+                    self.emit(.log("Could not read paired devices: \(error)"))
+                    self.emit(.trustedListProblem(
+                        "M’AND couldn’t open its list of paired phones in your Keychain. Click Try Again, and if macOS asks, enter your Mac password and click Always Allow."))
+                }
+            }
         }
     }
 
@@ -105,6 +127,10 @@ public final class BridgeServer: @unchecked Sendable {
         queue.async {
             guard let port = self.port else {
                 self.emit(.pairingUnavailable("M’AND isn’t ready to accept connections yet.")); return
+            }
+            guard self.devicesLoaded else {
+                self.emit(.pairingUnavailable("M’AND is still opening its list of paired phones. If macOS is asking for your password, enter it and click Always Allow, then try again."))
+                return
             }
             let hosts = self.addresses()
             guard !hosts.isEmpty else {
@@ -279,7 +305,10 @@ public final class BridgeServer: @unchecked Sendable {
             session.version = version
             session.helloName = Self.displaySafe(hello.name)
             session.features = Set(hello.features)
-            if let peer = session.peer, let device = devices.first(where: { $0.fingerprint == peer }) {
+            if !devicesLoaded {
+                // Don't say "not paired": the phone would forget this Mac. A plain close makes it retry later.
+                session.framed.close(reason: "paired-phone list not available yet")
+            } else if let peer = session.peer, let device = devices.first(where: { $0.fingerprint == peer }) {
                 makeReady(session, device: device)
             } else if window?.isUsable(at: Date()) == true {
                 if let address = session.framed.remoteAddress, isThrottled(address) {
@@ -459,6 +488,7 @@ public final class BridgeServer: @unchecked Sendable {
 
     @discardableResult
     private func updateDevices(_ next: [PairedDevice]) -> Bool {
+        guard devicesLoaded else { return false } // never overwrite a list that couldn't be read
         devices = next
         emit(.devicesChanged(next))
         do {
@@ -535,5 +565,7 @@ final class Session {
 }
 
 public enum AppInfo {
-    public static let version = "0.5.0"
+    public static let version = "0.6.0"
+    /// Where people download the phone app (shown as a QR code when pairing).
+    public static let downloadPage = "https://github.com/saarukesh2005/MAND/releases/latest"
 }

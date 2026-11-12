@@ -13,8 +13,8 @@ android {
         // ACCESS_LOCAL_NETWORK runtime permission until onboarding for it is built (see docs/DECISIONS.md).
         minSdk = 34
         targetSdk = 37
-        versionCode = 5
-        versionName = "0.5.0"
+        versionCode = 6
+        versionName = "0.6.0"
     }
 
     buildTypes {

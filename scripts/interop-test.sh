@@ -25,7 +25,7 @@ echo "→ Building and starting the Swift test server…"
 "$ROOT/mac/.build/debug/MandInteropServer" > "$WORK/server.log" 2>&1 &
 SERVER_PID=$!
 for _ in $(seq 1 50); do grep -q "^INVITE " "$WORK/server.log" 2>/dev/null && break; sleep 0.2; done
-INVITE="$(grep -m1 '^INVITE ' "$WORK/server.log" | cut -d' ' -f2-)"
+INVITE="$(grep -m1 '^INVITE ' "$WORK/server.log" | cut -d' ' -f2- || true)"
 [ -n "$INVITE" ] || { echo "Server didn't start:"; cat "$WORK/server.log"; exit 1; }
 
 echo "→ Running the Kotlin/JSSE client…"

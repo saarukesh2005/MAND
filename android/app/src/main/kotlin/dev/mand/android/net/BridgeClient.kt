@@ -126,7 +126,18 @@ class BridgeClient private constructor(private val context: Context) {
     fun startLink() {
         if (isPairing || linkJob?.isActive == true) return
         discovery.start()
-        linkJob = scope.launch { runLinkLoop() }
+        linkJob = scope.launch {
+            // The moment the Mac shows up on the Wi-Fi (e.g. it was just opened), try straight away
+            // instead of waiting for the next scheduled retry.
+            launch {
+                var known = emptySet<String>()
+                discovery.found.collect { macs ->
+                    if ((macs.keys - known).isNotEmpty()) kick.trySend(Unit)
+                    known = macs.keys
+                }
+            }
+            runLinkLoop()
+        }
     }
 
     @Synchronized
@@ -323,12 +334,14 @@ class BridgeClient private constructor(private val context: Context) {
             if (connectedOk) attempt = 0
             _state.value = LinkState.Searching(mac.name, attempt, lastError, ReconnectPolicy.isResting(attempt))
             // Wait (quick at first, then every 5 minutes), or retry at once when the network changes.
+            // A kick (Wi-Fi change, the Mac appearing, the user opening M’AND) starts the quick retries again.
+            var kicked = false
             @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
             select<Unit> {
-                kick.onReceive { }
+                kick.onReceive { kicked = true }
                 onTimeout(ReconnectPolicy.delayMs(attempt)) { }
             }
-            attempt += 1
+            attempt = if (kicked) 0 else attempt + 1
         }
     }
 
@@ -419,8 +432,10 @@ class BridgeClient private constructor(private val context: Context) {
                     is Message.FileAck, is Message.FileDone, is Message.FileResult, is Message.FileCancel,
                     is Message.ClipboardText, is Message.NotificationDismiss, is Message.CallActionRequest,
                     is Message.TapGrab, is Message.TapSeen, is Message.TapResult,
-                    is Message.FindRing, is Message.FindStop, is Message.LinkOpen -> {
+                    is Message.FindRing, is Message.FindStop, is Message.LinkOpen,
+                    is Message.ScreenRequest, is Message.ScreenStop -> {
                         val feature = when (message) {
+                            is Message.ScreenRequest, is Message.ScreenStop -> Feature.SCREEN
                             is Message.FindRing, is Message.FindStop -> Feature.FIND
                             is Message.LinkOpen -> Feature.LINK
                             is Message.ClipboardText -> Feature.CLIPBOARD
@@ -521,7 +536,7 @@ class BridgeClient private constructor(private val context: Context) {
 
     companion object {
         private const val TAG = "MandBridge"
-        const val APP_VERSION = "0.5.0"
+        const val APP_VERSION = "0.6.0"
         private const val HANDSHAKE_TIMEOUT_MS = 10_000L
         private const val APPROVAL_TIMEOUT_MS = 5L * 60 * 1000
         private const val MAX_CHAT_LINES = 100

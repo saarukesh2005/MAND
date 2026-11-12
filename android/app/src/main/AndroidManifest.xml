@@ -8,6 +8,8 @@
     <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <!-- Built-in screen mirroring to the Mac (only after the person taps Start now each time). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
     <!-- The persistent "M’AND connected" notification. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Lets the user exempt M’AND from battery optimisation so the link survives in the background. -->
@@ -53,6 +55,14 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- The Mac's pairing QR code is a mand://pair link, so the phone's own Camera app can open it.
+                 M’AND always asks before pairing. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="mand" android:host="pair" />
             </intent-filter>
         </activity>
 
@@ -119,6 +129,17 @@
                 android:name="android.accessibilityservice"
                 android:resource="@xml/tap_service" />
         </service>
+
+        <activity
+            android:name=".screen.ScreenShareActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
+        <service
+            android:name=".screen.ScreenShareService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
 
         <receiver
             android:name=".find.FindPhone$StopReceiver"

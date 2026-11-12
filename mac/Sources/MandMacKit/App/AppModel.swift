@@ -101,6 +101,11 @@ public final class AppModel {
     public private(set) var tapNotice: String?
     /// nil until Tap to Send has been switched on once and the sensor was checked.
     public private(set) var tapSensorAvailable: Bool?
+    /// Set when the paired-phone list can't be read (shown on Home with a Try Again button).
+    public internal(set) var trustedListProblem: String?
+    /// Built-in Wi-Fi screen mirroring state, and the mirror that displays the picture.
+    public internal(set) var screenState: ScreenState = .idle
+    public private(set) var screenMirror: ScreenMirror?
     /// Last link sent or received, shown in Home.
     public internal(set) var linkNotice: String?
     public let settings: AppSettings
@@ -181,6 +186,10 @@ public final class AppModel {
             onEvent: { [weak self] event in
                 DispatchQueue.main.async { MainActor.assumeIsolated { self?.applyTap(event) } }
             })
+        let mirror = ScreenMirror { [weak self] event in
+            DispatchQueue.main.async { MainActor.assumeIsolated { self?.applyScreen(event) } }
+        }
+        screenMirror = mirror
         let server = BridgeServer(identity: identity, store: store, deviceName: macName) { [weak self] event in
             // File and tap messages go straight to their queues; everything else to the UI, in order.
             if case .featureMessage(let message, let device) = event {
@@ -190,6 +199,10 @@ public final class AppModel {
                 }
                 if message.feature == Feature.tap {
                     tap.handle(message, from: device.fingerprint)
+                    return
+                }
+                if message.feature == Feature.screen {
+                    mirror.handle(message, from: device.fingerprint) // video frames never touch the main thread
                     return
                 }
             }
@@ -543,11 +556,19 @@ public final class AppModel {
             if selectedPhoneID == device.fingerprint.hex { selectedPhoneID = phones.last?.id }
             fileServices[device.fingerprint]?.connectionChanged(connected: false)
             tap?.phoneDisconnected(device.fingerprint)
+            if case .showing(let name, _, _, _) = screenState, name == aliased(device).name {
+                screenMirror?.reset()
+                screenState = .ended("\(name) disconnected.")
+            } else if case .asking(let name) = screenState, name == aliased(device).name {
+                screenState = .idle
+            }
             lastDisconnect = (aliased(device).name, reason, Date())
         case .textReceived(let text, let device):
             appendChat(ChatLine(direction: .fromPhone, text: text, date: Date(), deviceName: aliased(device).name))
         case .featureMessage(let message, let device):
             applyFeature(message, from: aliased(device))
+        case .trustedListProblem(let problem):
+            trustedListProblem = problem
         case .latency(let device, let milliseconds):
             update(device.fingerprint) { $0.latencyMs = milliseconds }
         case .log(let text):

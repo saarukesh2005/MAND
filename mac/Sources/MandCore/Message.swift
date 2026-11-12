@@ -10,7 +10,8 @@ public enum Feature {
     public static let tap = "tap.v1"
     public static let find = "find.v1"
     public static let link = "link.v1"
-    public static let all: [String] = [files, clipboard, device, notifications, calls, tap, find, link]
+    public static let screen = "screen.v1"
+    public static let all: [String] = [files, clipboard, device, notifications, calls, tap, find, link, screen]
 }
 
 /// The `hello` body (protocol §3).
@@ -138,6 +139,10 @@ public enum Message: Equatable, Sendable {
     case findStop
     case findState(ringing: Bool)
     case linkOpen(url: String, title: String?)
+    case screenRequest
+    case screenStart(width: Int, height: Int)
+    case screenFrame(seq: Int64, key: Bool, data: Data)
+    case screenStop(reason: String)
     case unknown(type: String)
 
     public enum CallState: String, Sendable { case ringing, active, idle }
@@ -149,6 +154,9 @@ public enum Message: Equatable, Sendable {
     public static let maxFileChunkBytes = 196_608
     public static let maxFileSize: Int64 = 1 << 40
     public static let maxStorageBytes: Int64 = 1 << 50
+    /// One encoded video frame (H.264 Annex B) in `screen.frame`; fits a 1 MiB frame after base64.
+    public static let maxScreenFrameBytes = 600_000
+    public static let maxScreenSide = 4_096
 
     public var type: String {
         switch self {
@@ -187,6 +195,10 @@ public enum Message: Equatable, Sendable {
         case .findStop: "find.stop"
         case .findState: "find.state"
         case .linkOpen: "link.open"
+        case .screenRequest: "screen.request"
+        case .screenStart: "screen.start"
+        case .screenFrame: "screen.frame"
+        case .screenStop: "screen.stop"
         case .unknown(let type): type
         }
     }
@@ -200,6 +212,7 @@ public enum Message: Equatable, Sendable {
         case .deviceStatus, .deviceInfo: Feature.device
         case .findRing, .findStop, .findState: Feature.find
         case .linkOpen: Feature.link
+        case .screenRequest, .screenStart, .screenFrame, .screenStop: Feature.screen
         case .notificationPosted, .notificationRemoved, .notificationDismiss: Feature.notifications
         case .callState, .callAction: Feature.calls
         case .tapKnock, .tapGrab, .tapDecline, .tapLight, .tapSeen, .tapResult: Feature.tap

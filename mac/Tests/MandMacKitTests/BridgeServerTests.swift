@@ -10,7 +10,7 @@ final class BridgeServerTests {
     let macIdentity: DeviceIdentity
     let phoneIdentity: DeviceIdentity
     let events = Recorder<BridgeServer.Event>()
-    let store = InMemoryPairedDeviceStore()
+    var store: PairedDeviceStore = InMemoryPairedDeviceStore()
     var approve = true
     var approvalDelay: TimeInterval = 0
     var server: BridgeServer!
@@ -40,6 +40,14 @@ final class BridgeServerTests {
         box.server = server
         server.start()
         let port = await events.wait { if case .listening(let port) = $0 { port } else { nil } }
+        // The trusted list loads separately; tests start once it has (or once it has failed).
+        _ = await events.wait { event -> Bool? in
+            switch event {
+            case .devicesChanged: true
+            case .trustedListProblem(let problem) where problem != nil: true
+            default: nil
+            }
+        }
         return try #require(port)
     }
 
@@ -286,9 +294,69 @@ final class BridgeServerTests {
         #expect(await phone.closed.wait { $0 } != nil)
         #expect(!events.all.contains { if case .textReceived = $0 { true } else { false } })
     }
+
+    @Test("If the paired list can't be read, a known phone keeps its pairing and connects after Try Again")
+    func unreadableTrustedList() async throws {
+        let flaky = FlakyStore()
+        store = flaky
+        let port = try await startServer()
+        let paired = try await pairedPhone(port: port)
+        paired.disconnect()
+        _ = await events.wait { if case .phoneDisconnected = $0 { true } else { nil } }
+
+        // Restart with a Keychain that refuses to open (e.g. the prompt was declined).
+        server.stop()
+        let savesBefore = flaky.saved.count
+        flaky.failLoads = true
+        events.clear()
+        let port2 = try await startServer()
+        #expect(events.all.contains { if case .trustedListProblem(let p) = $0 { p != nil } else { false } })
+
+        let phone = SimulatedPhone(identity: phoneIdentity)
+        phone.connect(port: port2, pinning: macIdentity.fingerprint)
+        #expect(await phone.closed.wait { $0 } != nil)
+        // The phone must never be told it isn't paired (it would delete its pairing).
+        #expect(!phone.received.all.contains { if case .error(let code, _) = $0 { code == ProtocolError.notPaired.rawValue } else { false } })
+        #expect(flaky.saved.count == savesBefore) // the stored list was not overwritten
+
+        flaky.failLoads = false
+        server.reloadDevices()
+        _ = await events.wait { if case .devicesChanged(let d) = $0, !d.isEmpty { true } else { nil } }
+        let again = SimulatedPhone(identity: phoneIdentity)
+        again.connect(port: port2, pinning: macIdentity.fingerprint)
+        #expect(await again.received.wait { $0 == .sessionReady ? true : nil } == true)
+    }
 }
 
 /// Lets the event callback reach the server created after it.
 private final class ServerBox: @unchecked Sendable {
     weak var server: BridgeServer?
+
+}
+
+/// A store whose reads can be made to fail, like a Keychain item the user declined access to.
+final class FlakyStore: PairedDeviceStore, @unchecked Sendable {
+    private let lock = NSLock()
+    private var devices: [PairedDevice] = []
+    private var _failLoads = false
+    private(set) var saved: [[PairedDevice]] = []
+    var failLoads: Bool {
+        get { lock.withLock { _failLoads } }
+        set { lock.withLock { _failLoads = newValue } }
+    }
+    struct Denied: Error {}
+
+    func load() throws -> [PairedDevice] {
+        try lock.withLock {
+            if _failLoads { throw Denied() }
+            return devices
+        }
+    }
+
+    func save(_ devices: [PairedDevice]) throws {
+        lock.withLock {
+            self.devices = devices
+            saved.append(devices)
+        }
+    }
 }

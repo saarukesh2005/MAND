@@ -57,6 +57,8 @@ struct EnvelopeCodecTests {
         .deviceInfo(DeviceInfo(model: "Pixel 7a", os: "Android 16", storageFree: 5, storageTotal: 10)),
         .findRing, .findStop, .findState(ringing: false),
         .linkOpen(url: "https://example.com", title: "Example"), .linkOpen(url: "http://a.b/c", title: nil),
+        .screenRequest, .screenStart(width: 1080, height: 2400),
+        .screenFrame(seq: 7, key: true, data: Data([0, 0, 0, 1, 0x67, 0x42])), .screenStop(reason: "user"),
     ]
 
     @Test("Every message type round-trips", arguments: messages)

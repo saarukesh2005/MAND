@@ -85,6 +85,17 @@ object EnvelopeCodec {
             storageFree = long(body["storageFree"], 0..Message.MAX_STORAGE_BYTES),
             storageTotal = long(body["storageTotal"], 0..Message.MAX_STORAGE_BYTES),
         )
+        "screen.request" -> Message.ScreenRequest
+        "screen.start" -> Message.ScreenStart(
+            long(body["width"], 16L..Message.MAX_SCREEN_SIDE).toInt(),
+            long(body["height"], 16L..Message.MAX_SCREEN_SIDE).toInt(),
+        )
+        "screen.frame" -> {
+            val data = string(body["data"], Message.MAX_SCREEN_FRAME_BYTES * 4 / 3 + 4)?.let { Base64Url.decode(it) }
+                ?.takeIf { it.isNotEmpty() && it.size <= Message.MAX_SCREEN_FRAME_BYTES } ?: malformed()
+            Message.ScreenFrame(long(body["seq"], 0L..(1L shl 53)), boolean(body["key"]) ?: malformed(), data)
+        }
+        "screen.stop" -> Message.ScreenStop(required(body["reason"], 64))
         "find.ring" -> Message.FindRing
         "find.stop" -> Message.FindStop
         "find.state" -> Message.FindState(boolean(body["ringing"]) ?: malformed())
@@ -234,8 +245,15 @@ object EnvelopeCodec {
                 put("url", message.url)
                 message.title?.let { put("title", it) }
             }
+            is Message.ScreenStart -> { put("width", message.width); put("height", message.height) }
+            is Message.ScreenFrame -> {
+                put("seq", message.seq)
+                put("key", message.key)
+                put("data", Base64Url.encode(message.data))
+            }
+            is Message.ScreenStop -> put("reason", message.reason)
             Message.SessionReady, Message.Ping, Message.TapKnock, Message.FindRing, Message.FindStop,
-            is Message.Unknown -> Unit
+            Message.ScreenRequest, is Message.Unknown -> Unit
         }
     }
 

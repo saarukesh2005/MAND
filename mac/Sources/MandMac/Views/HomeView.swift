@@ -9,6 +9,17 @@ struct HomeView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Space.xl - 4) {
+                if let problem = model.trustedListProblem {
+                    Card(title: "M’AND needs your OK") {
+                        VStack(alignment: .leading, spacing: Theme.Space.s) {
+                            Text(problem).fixedSize(horizontal: false, vertical: true)
+                            Text("Your phone stays paired and will connect as soon as this is fixed.")
+                                .font(.callout).foregroundStyle(.secondary)
+                            Button("Try Again") { model.retryTrustedList() }
+                                .buttonStyle(.borderedProminent).tint(Theme.accent).controlSize(.large)
+                        }
+                    }
+                }
                 if let ringing = model.ringingPhone { CallBanner(phone: ringing) }
                 if let finding = model.phones.first(where: \.isRinging) { FindBanner(phone: finding) }
                 if model.phones.count > 1 { DeviceSwitcher() }
@@ -207,8 +218,13 @@ struct QuickActions: View {
                            hint: model.phoneSupports(Feature.find) ? "Make it ring loudly, even on silent"
                                                                    : "Update M’AND on your phone first",
                            isEnabled: model.phoneSupports(Feature.find)) { model.ringPhone() }
-                ActionTile(symbol: "rectangle.on.rectangle", title: "Mirror Screen",
-                           hint: "See your phone’s screen on the Mac (USB cable)") { ui.section = .mirroring }
+                ActionTile(symbol: "rectangle.on.rectangle", title: "See Phone Screen",
+                           hint: model.phoneSupports(Feature.screen) ? "Over Wi-Fi. Your phone asks you first"
+                                                                     : "Update M’AND on your phone first",
+                           isEnabled: model.phoneSupports(Feature.screen)) {
+                    ui.section = .mirroring
+                    model.startPhoneScreen()
+                }
             }
             ForEach(notices, id: \.self) { NoticeLine(text: $0) }
         }
@@ -353,7 +369,7 @@ struct FeaturesGrid: View {
                 FeatureTile(symbol: "battery.75percent", title: "Battery and phone details", status: status(Feature.device))
                 FeatureTile(symbol: "speaker.wave.3", title: "Find My Phone", status: status(Feature.find))
                 FeatureTile(symbol: "link", title: "Links", status: status(Feature.link))
-                FeatureTile(symbol: "rectangle.on.rectangle", title: "Screen mirroring", status: mirroringStatus)
+                FeatureTile(symbol: "rectangle.on.rectangle", title: "Screen mirroring (Wi-Fi)", status: status(Feature.screen))
                 FeatureToggleTile(symbol: "hand.tap", title: "Tap to Send",
                                   detail: "Hold the phone against the notch to send its screen. Experimental.",
                                   isOn: Binding(get: { model.settings.tapEnabled }, set: { model.setTapEnabled($0) }))
