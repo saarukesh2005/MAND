@@ -7,7 +7,8 @@ public enum Feature {
     public static let device = "device.v1"
     public static let notifications = "notifications.v1"
     public static let calls = "calls.v1"
-    public static let all: [String] = [files, clipboard, device, notifications, calls]
+    public static let tap = "tap.v1"
+    public static let all: [String] = [files, clipboard, device, notifications, calls, tap]
 }
 
 /// The `hello` body (protocol §3).
@@ -91,6 +92,12 @@ public enum Message: Equatable, Sendable {
     case notificationDismiss(key: String)
     case callState(CallState, caller: String?)
     case callAction(CallAction)
+    case tapKnock
+    case tapGrab(round: Int64, dark: Bool)
+    case tapDecline(round: Int64, why: String)
+    case tapLight(round: Int64, on: Bool)
+    case tapSeen(round: Int64)
+    case tapResult(round: Int64, ok: Bool, why: String?)
     case unknown(type: String)
 
     public enum CallState: String, Sendable { case ringing, active, idle }
@@ -128,6 +135,12 @@ public enum Message: Equatable, Sendable {
         case .notificationDismiss: "notification.dismiss"
         case .callState: "call.state"
         case .callAction: "call.action"
+        case .tapKnock: "tap.knock"
+        case .tapGrab: "tap.grab"
+        case .tapDecline: "tap.decline"
+        case .tapLight: "tap.light"
+        case .tapSeen: "tap.seen"
+        case .tapResult: "tap.result"
         case .unknown(let type): type
         }
     }
@@ -141,6 +154,7 @@ public enum Message: Equatable, Sendable {
         case .deviceStatus: Feature.device
         case .notificationPosted, .notificationRemoved, .notificationDismiss: Feature.notifications
         case .callState, .callAction: Feature.calls
+        case .tapKnock, .tapGrab, .tapDecline, .tapLight, .tapSeen, .tapResult: Feature.tap
         default: nil
         }
     }

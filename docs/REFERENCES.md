@@ -15,3 +15,4 @@ Open-source projects that solve parts of what M’AND does. Checked on GitHub on
 | [Genymobile/scrcpy](https://github.com/Genymobile/scrcpy) | Android screen mirroring | Apache-2.0 | Used by M’AND's Screen Mirroring (installed by the user) |
 | [SimonAKing/scrcpy-gui](https://github.com/SimonAKing/scrcpy-gui), [kil0bit-kb/scrcpy-gui](https://github.com/kil0bit-kb/scrcpy-gui) | Desktop apps that manage scrcpy | not checked | How to launch and manage scrcpy from an app |
 | [Sathvik-Rao/ClipCascade](https://github.com/Sathvik-Rao/ClipCascade) | Clipboard sync | GPL-3.0, ideas only | Workarounds for Android's background clipboard limits |
+| [0x1p0/TapDrop](https://github.com/0x1p0/TapDrop) | Tap the phone to the MacBook notch to send what's on screen | MIT | **Used:** M’AND's Tap to Send adapts its light key and notch-sensor access (credited in THIRD_PARTY_NOTICES) |

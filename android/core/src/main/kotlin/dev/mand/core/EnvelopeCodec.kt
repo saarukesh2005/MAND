@@ -96,6 +96,14 @@ object EnvelopeCodec {
         "call.action" -> Message.CallActionRequest(
             Message.CallAction.entries.firstOrNull { it.wire == string(body["action"], 16) } ?: malformed(),
         )
+        "tap.knock" -> Message.TapKnock
+        "tap.grab" -> Message.TapGrab(long(body["round"], 1L..Int.MAX_VALUE), boolean(body["dark"]) ?: malformed())
+        "tap.decline" -> Message.TapDecline(long(body["round"], 1L..Int.MAX_VALUE), required(body["why"], 64))
+        "tap.light" -> Message.TapLight(long(body["round"], 1L..Int.MAX_VALUE), boolean(body["on"]) ?: malformed())
+        "tap.seen" -> Message.TapSeen(long(body["round"], 1L..Int.MAX_VALUE))
+        "tap.result" -> Message.TapResult(
+            long(body["round"], 1L..Int.MAX_VALUE), boolean(body["ok"]) ?: malformed(), optional(body["why"], 64),
+        )
         else -> Message.Unknown(type)
     }
 
@@ -193,7 +201,16 @@ object EnvelopeCodec {
                 message.caller?.let { put("caller", it) }
             }
             is Message.CallActionRequest -> put("action", message.action.wire)
-            Message.SessionReady, Message.Ping, is Message.Unknown -> Unit
+            is Message.TapGrab -> { put("round", message.round); put("dark", message.dark) }
+            is Message.TapDecline -> { put("round", message.round); put("why", message.why) }
+            is Message.TapLight -> { put("round", message.round); put("on", message.on) }
+            is Message.TapSeen -> put("round", message.round)
+            is Message.TapResult -> {
+                put("round", message.round)
+                put("ok", message.ok)
+                message.why?.let { put("why", it) }
+            }
+            Message.SessionReady, Message.Ping, Message.TapKnock, is Message.Unknown -> Unit
         }
     }
 

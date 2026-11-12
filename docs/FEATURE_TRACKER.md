@@ -93,10 +93,26 @@ Last updated: 2026-11-12.
 | Tap / scroll / keyboard / navigation via AccessibilityService | NOT_STARTED | NOT_STARTED | |
 | Instant disconnect | NOT_STARTED | NOT_STARTED | |
 
+## 08 Tap to Send (from TapDrop, github.com/0x1p0/TapDrop, MIT — added 2026-11-12)
+| Feature | Mac | Android | Evidence / notes |
+|---|---|---|---|
+| Read the notch light sensor (private IOHID API, opt-in) | TESTED | n/a | real sensor read on this Mac (lid closed → 0 lux); MandMacKit Tap tests use a fake sensor |
+| Room baseline + DIP / RISE triggers | TESTED | n/a | TapTests (synthetic readings) |
+| Light-key judge (white seen → black falls, blocks room light) | TESTED | NOT_STARTED | 10 judge tests: phone, hand, lamp, too far, dark room, timeouts |
+| Learned contact level per phone | TESTED | n/a | ContactLearner test |
+| `tap.v1` protocol | TESTED | TESTED | shared vectors + round-trips in both languages |
+| Round coordination (grab / seen / result, knock = that phone only) | TESTED | NOT_STARTED | TapCoordinatorTests |
+| Phone: proximity "knock", white/black flash overlay | n/a | NOT_STARTED | planned: Accessibility overlay (no draw-over-apps permission) |
+| Phone: send what's on screen (screenshot; original file; circled text) | n/a | NOT_STARTED | |
+| SMS one-time codes → Mac clipboard (opt-in, RECEIVE_SMS) | NOT_STARTED | NOT_STARTED | |
+| Pause in banking/UPI apps (editable list) | n/a | NOT_STARTED | |
+| Settings toggle + sensor test meter (Mac) | NOT_STARTED | n/a | |
+| Real tap on hardware | BLOCKED | BLOCKED | needs the lid open and the Pixel connected |
+
 ## Context Engine
 | Feature | Mac | Android | Evidence / notes |
 |---|---|---|---|
-| Activity event log | NOT_STARTED | NOT_STARTED | |
+| Activity event log (append-only, Lamport-ordered) | TESTED | TESTED | shared context vectors (9 fold, 18 codec) in both languages |
 | Context collection from M’AND events | NOT_STARTED | NOT_STARTED | |
 | Context graph (nodes, relationships, tags) | NOT_STARTED | NOT_STARTED | |
 | Activity detection (explicit signals) | NOT_STARTED | NOT_STARTED | |
@@ -105,14 +121,14 @@ Last updated: 2026-11-12.
 ## Task Capsules
 | Feature | Mac | Android | Evidence / notes |
 |---|---|---|---|
-| Create / edit / delete / archive / duplicate | NOT_STARTED | NOT_STARTED | |
+| Create / edit / delete / archive / duplicate | IN_PROGRESS | IN_PROGRESS | model + reducer done and tested; storage and UI next |
 | Files, URLs, notes, screenshots, actions | NOT_STARTED | NOT_STARTED | |
 | Progress, timeline, device history | NOT_STARTED | NOT_STARTED | |
 | Search / pin | NOT_STARTED | NOT_STARTED | |
 | Sync between devices | NOT_STARTED | NOT_STARTED | |
 | Resume ("Continue … ?") | NOT_STARTED | NOT_STARTED | |
 | Export / import | NOT_STARTED | NOT_STARTED | |
-| Version history / restore | NOT_STARTED | NOT_STARTED | |
+| Version history / restore | IN_PROGRESS | IN_PROGRESS | point-in-time fold, diff, restore and undo tested; UI next |
 
 ## Personal Brain
 | Feature | Mac | Android | Evidence / notes |
@@ -128,7 +144,7 @@ Last updated: 2026-11-12.
 | Feature | Mac | Android | Evidence / notes |
 |---|---|---|---|
 | Activity timeline | NOT_STARTED | NOT_STARTED | |
-| Snapshots / versions / compare | NOT_STARTED | NOT_STARTED | |
+| Snapshots / versions / compare | IN_PROGRESS | IN_PROGRESS | reducer-level, tested |
 | Restore preview / selective restore / undo | NOT_STARTED | NOT_STARTED | |
 | Retention / delete / export history | NOT_STARTED | NOT_STARTED | |
 
@@ -142,7 +158,7 @@ Last updated: 2026-11-12.
 | Feature | Mac | Android | Evidence / notes |
 |---|---|---|---|
 | Where an activity lives / can continue | NOT_STARTED | NOT_STARTED | |
-| Versioned sync with conflict resolution | NOT_STARTED | NOT_STARTED | |
+| Versioned sync with conflict resolution | IN_PROGRESS | IN_PROGRESS | conflict detection in the reducer, tested; `context.v1` sync messages next |
 | Restore files / notes / URLs / deep links | NOT_STARTED | NOT_STARTED | |
 
 ## Delegate

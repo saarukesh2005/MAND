@@ -72,6 +72,7 @@ These are new message types under protocol version 1. Older apps ignore them, as
 | `device.v1` | `device.status` |
 | `notifications.v1` | `notification.posted`, `notification.removed`, `notification.dismiss` |
 | `calls.v1` | `call.state`, `call.action` |
+| `tap.v1` | `tap.grab`, `tap.light`, `tap.seen`, `tap.result`, `tap.knock`, `tap.decline` |
 
 ### File transfer (`file.v1`)
 
@@ -119,6 +120,23 @@ How a transfer runs:
 
 ### Device status (`device.v1`)
 `device.status {battery, charging}`: battery is an integer from 0 to 100; charging is a boolean. The phone sends it when connected and whenever either value changes.
+
+### Tap to Send (`tap.v1`)
+Touch the phone to the MacBook's notch to send what's on its screen. Adapted from TapDrop's light key (MIT, github.com/0x1p0/TapDrop): the Mac's ambient light sensor must see the phone's own screen turn white and then black, on cue.
+
+| type | direction | body |
+|---|---|---|
+| `tap.knock` | phone → Mac | `{}`: the phone's proximity sensor says it was just put against something |
+| `tap.grab` | Mac → phone | `{round, dark}`: start a light key (`round` ≥ 1; `dark` = the room is dark) |
+| `tap.decline` | phone → Mac | `{round, why}`: not now (e.g. `paused-app`, `locked`, `off`) |
+| `tap.light` | phone → Mac | `{round, on}`: the screen is now full-brightness white (`on: true`) or black (`on: false`) |
+| `tap.seen` | Mac → phone | `{round}`: the notch saw the white; turn black now |
+| `tap.result` | Mac → phone | `{round, ok, why?}`: `ok` → send the screen's content over `file.v1` / `clipboard.v1`; otherwise `why` (≤64 bytes) |
+
+Rules:
+- One round at a time.
+- A phone sends nothing for a round unless it got `tap.result{ok:true}` for it.
+- The Mac judges the light: white − black ≥ 45 % of this phone's learned contact level, and in a lit room the black phone must block the room light.
 
 ### Calls (`calls.v1`)
 | type | direction | body |

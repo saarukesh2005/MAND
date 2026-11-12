@@ -51,6 +51,9 @@ struct EnvelopeCodecTests {
         .notificationPosted(PhoneNotification(key: "k", app: "com.x", appName: "X", title: "T", text: nil, time: 5)),
         .notificationRemoved(key: "k"), .notificationDismiss(key: "k"),
         .callState(.ringing, caller: "Amma"), .callState(.idle, caller: nil), .callAction(.decline),
+        .tapKnock, .tapGrab(round: 3, dark: true), .tapDecline(round: 3, why: "paused-app"),
+        .tapLight(round: 3, on: false), .tapSeen(round: 3), .tapResult(round: 3, ok: true, why: nil),
+        .tapResult(round: 4, ok: false, why: "stayed-lit"),
     ]
 
     @Test("Every message type round-trips", arguments: messages)

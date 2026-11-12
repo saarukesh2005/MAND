@@ -100,6 +100,21 @@ public enum EnvelopeCodec {
         case "call.action":
             guard let raw = body["action"] as? String, let action = Message.CallAction(rawValue: raw) else { throw .malformed }
             return .callAction(action)
+        case "tap.knock": return .tapKnock
+        case "tap.grab":
+            guard let dark = boolean(body["dark"]) else { throw .malformed }
+            return .tapGrab(round: try int64(body["round"], in: 1...Int64(Int32.max)), dark: dark)
+        case "tap.decline":
+            return .tapDecline(round: try int64(body["round"], in: 1...Int64(Int32.max)),
+                               why: try requiredString(body["why"], maxBytes: 64))
+        case "tap.light":
+            guard let on = boolean(body["on"]) else { throw .malformed }
+            return .tapLight(round: try int64(body["round"], in: 1...Int64(Int32.max)), on: on)
+        case "tap.seen": return .tapSeen(round: try int64(body["round"], in: 1...Int64(Int32.max)))
+        case "tap.result":
+            guard let ok = boolean(body["ok"]) else { throw .malformed }
+            return .tapResult(round: try int64(body["round"], in: 1...Int64(Int32.max)), ok: ok,
+                              why: try optionalString(body["why"], maxBytes: 64))
         default: return .unknown(type: type)
         }
     }
@@ -184,6 +199,13 @@ public enum EnvelopeCodec {
         case .callState(let state, let caller):
             caller.map { ["state": state.rawValue, "caller": $0] } ?? ["state": state.rawValue]
         case .callAction(let action): ["action": action.rawValue]
+        case .tapKnock: [:]
+        case .tapGrab(let round, let dark): ["round": round, "dark": dark]
+        case .tapDecline(let round, let why): ["round": round, "why": why]
+        case .tapLight(let round, let on): ["round": round, "on": on]
+        case .tapSeen(let round): ["round": round]
+        case .tapResult(let round, let ok, let why):
+            why.map { ["round": round, "ok": ok, "why": $0] } ?? ["round": round, "ok": ok]
         }
     }
 

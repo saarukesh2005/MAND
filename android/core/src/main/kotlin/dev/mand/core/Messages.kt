@@ -9,7 +9,8 @@ object Feature {
     const val DEVICE = "device.v1"
     const val NOTIFICATIONS = "notifications.v1"
     const val CALLS = "calls.v1"
-    val ALL = listOf(FILES, CLIPBOARD, DEVICE, NOTIFICATIONS, CALLS)
+    const val TAP = "tap.v1"
+    val ALL = listOf(FILES, CLIPBOARD, DEVICE, NOTIFICATIONS, CALLS, TAP)
 }
 
 /** The `hello` body (protocol §3). */
@@ -60,6 +61,12 @@ sealed class Message(val type: String) {
     data class NotificationDismiss(val key: String) : Message("notification.dismiss")
     data class CallStateUpdate(val state: CallState, val caller: String?) : Message("call.state")
     data class CallActionRequest(val action: CallAction) : Message("call.action")
+    data object TapKnock : Message("tap.knock")
+    data class TapGrab(val round: Long, val dark: Boolean) : Message("tap.grab")
+    data class TapDecline(val round: Long, val why: String) : Message("tap.decline")
+    data class TapLight(val round: Long, val on: Boolean) : Message("tap.light")
+    data class TapSeen(val round: Long) : Message("tap.seen")
+    data class TapResult(val round: Long, val ok: Boolean, val why: String?) : Message("tap.result")
     data class Unknown(val unknownType: String) : Message(unknownType)
 
     enum class CallState(val wire: String) { RINGING("ringing"), ACTIVE("active"), IDLE("idle") }

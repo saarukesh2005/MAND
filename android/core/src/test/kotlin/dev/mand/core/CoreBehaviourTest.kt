@@ -46,6 +46,8 @@ class CoreBehaviourTest {
             Message.NotificationRemoved("k"), Message.NotificationDismiss("k"),
             Message.CallStateUpdate(Message.CallState.RINGING, "Amma"), Message.CallStateUpdate(Message.CallState.IDLE, null),
             Message.CallActionRequest(Message.CallAction.DECLINE),
+            Message.TapKnock, Message.TapGrab(3, true), Message.TapDecline(3, "paused-app"), Message.TapLight(3, false),
+            Message.TapSeen(3), Message.TapResult(3, true, null), Message.TapResult(4, false, "stayed-lit"),
         )
         for (message in messages) {
             val envelope = Envelope(message, id = "id-1", timestampMillis = 42)

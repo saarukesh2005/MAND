@@ -476,6 +476,72 @@
       "json": "{\"v\":1,\"type\":\"call.action\",\"id\":\"c71\",\"ts\":1,\"body\":{\"action\":\"mute\"}}",
       "expect": "error",
       "code": "malformed"
+    },
+    {
+      "name": "tap.knock",
+      "json": "{\"v\":1,\"type\":\"tap.knock\",\"id\":\"t72\",\"ts\":1,\"body\":{}}",
+      "expect": "ok",
+      "type": "tap.knock"
+    },
+    {
+      "name": "tap.grab",
+      "json": "{\"v\":1,\"type\":\"tap.grab\",\"id\":\"t73\",\"ts\":1,\"body\":{\"round\":7,\"dark\":false}}",
+      "expect": "ok",
+      "type": "tap.grab"
+    },
+    {
+      "name": "tap.grab round zero",
+      "json": "{\"v\":1,\"type\":\"tap.grab\",\"id\":\"t74\",\"ts\":1,\"body\":{\"round\":0,\"dark\":false}}",
+      "expect": "error",
+      "code": "malformed"
+    },
+    {
+      "name": "tap.grab dark missing",
+      "json": "{\"v\":1,\"type\":\"tap.grab\",\"id\":\"t75\",\"ts\":1,\"body\":{\"round\":1}}",
+      "expect": "error",
+      "code": "malformed"
+    },
+    {
+      "name": "tap.light on",
+      "json": "{\"v\":1,\"type\":\"tap.light\",\"id\":\"t76\",\"ts\":1,\"body\":{\"round\":7,\"on\":true}}",
+      "expect": "ok",
+      "type": "tap.light"
+    },
+    {
+      "name": "tap.light on as string",
+      "json": "{\"v\":1,\"type\":\"tap.light\",\"id\":\"t77\",\"ts\":1,\"body\":{\"round\":7,\"on\":\"yes\"}}",
+      "expect": "error",
+      "code": "malformed"
+    },
+    {
+      "name": "tap.seen",
+      "json": "{\"v\":1,\"type\":\"tap.seen\",\"id\":\"t78\",\"ts\":1,\"body\":{\"round\":7}}",
+      "expect": "ok",
+      "type": "tap.seen"
+    },
+    {
+      "name": "tap.result ok",
+      "json": "{\"v\":1,\"type\":\"tap.result\",\"id\":\"t79\",\"ts\":1,\"body\":{\"round\":7,\"ok\":true}}",
+      "expect": "ok",
+      "type": "tap.result"
+    },
+    {
+      "name": "tap.result failed with reason",
+      "json": "{\"v\":1,\"type\":\"tap.result\",\"id\":\"t80\",\"ts\":1,\"body\":{\"round\":7,\"ok\":false,\"why\":\"stayed-lit\"}}",
+      "expect": "ok",
+      "type": "tap.result"
+    },
+    {
+      "name": "tap.decline",
+      "json": "{\"v\":1,\"type\":\"tap.decline\",\"id\":\"t81\",\"ts\":1,\"body\":{\"round\":7,\"why\":\"paused-app\"}}",
+      "expect": "ok",
+      "type": "tap.decline"
+    },
+    {
+      "name": "tap.decline missing why",
+      "json": "{\"v\":1,\"type\":\"tap.decline\",\"id\":\"t82\",\"ts\":1,\"body\":{\"round\":7}}",
+      "expect": "error",
+      "code": "malformed"
     }
   ],
   "versionNegotiation": [
