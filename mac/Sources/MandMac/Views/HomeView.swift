@@ -182,6 +182,9 @@ struct QuickActions: View {
             if let notice = model.clipboardNotice {
                 Text(notice).font(.callout).foregroundStyle(.secondary)
             }
+            if model.settings.tapEnabled, let notice = model.tapNotice {
+                Label(notice, systemImage: "hand.tap").font(.callout).foregroundStyle(.secondary)
+            }
         }
     }
 }

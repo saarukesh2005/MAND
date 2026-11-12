@@ -22,6 +22,8 @@ public final class AppSettings {
     }
     /// Unofficial Quick Share receiving; off until the user turns it on.
     public var quickShareEnabled: Bool { didSet { defaults.set(quickShareEnabled, forKey: Keys.quickShareEnabled) } }
+    /// Tap to Send (reads the notch light sensor through a private API); off until the user turns it on.
+    public var tapEnabled: Bool { didSet { defaults.set(tapEnabled, forKey: Keys.tapEnabled) } }
 
     enum Keys {
         static let downloadFolder = "downloadFolder"
@@ -32,6 +34,7 @@ public final class AppSettings {
         static let scrcpyPath = "scrcpyPath"
         static let hasCompletedOnboarding = "hasCompletedOnboarding"
         static let quickShareEnabled = "quickShareEnabled"
+        static let tapEnabled = "tapEnabled"
     }
 
     public static var defaultDownloadFolder: URL {
@@ -50,5 +53,6 @@ public final class AppSettings {
         scrcpyPath = defaults.string(forKey: Keys.scrcpyPath)
         hasCompletedOnboarding = defaults.bool(forKey: Keys.hasCompletedOnboarding)
         quickShareEnabled = defaults.bool(forKey: Keys.quickShareEnabled)
+        tapEnabled = defaults.bool(forKey: Keys.tapEnabled)
     }
 }

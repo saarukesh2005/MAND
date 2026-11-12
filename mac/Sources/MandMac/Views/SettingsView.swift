@@ -42,6 +42,18 @@ struct SettingsView: View {
             } footer: {
                 Text("Lets any Android phone on this Wi-Fi send files with its built-in Share → Quick Share, without opening M’AND. While on, this Mac is visible to everyone on the network, and you approve each transfer. Uses an unofficial protocol (adapted from the open-source NearDrop) that Google can change at any time. Off by default.")
             }
+            Section {
+                Toggle("Tap to Send", isOn: Binding(get: { settings.tapEnabled }, set: { model.setTapEnabled($0) }))
+                if settings.tapEnabled, model.tapSensorAvailable == false {
+                    Text("This Mac’s light sensor isn’t available (it needs a MacBook with a notch, lid open).")
+                        .foregroundStyle(.orange)
+                }
+                if let notice = model.tapNotice { Text(notice).foregroundStyle(.secondary) }
+            } header: {
+                Text("Tap to Send (experimental)")
+            } footer: {
+                Text("Hold your phone’s screen against the notch: the phone flashes, and if the Mac sees the flash it sends what’s on the phone’s screen. Also turn on “M’AND Tap to Send” in the phone’s Accessibility settings. Reads the notch light sensor through an undocumented macOS interface (adapted from the open-source TapDrop), so a macOS update can break it. Off by default.")
+            }
             Section("Files") {
                 LabeledContent("Save files from phone in") {
                     HStack {

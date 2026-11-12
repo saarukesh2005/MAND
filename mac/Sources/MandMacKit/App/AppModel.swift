@@ -91,6 +91,10 @@ public final class AppModel {
     public private(set) var mirroringState: ScrcpyManager.State = .notInstalled
     public private(set) var mirroringOutput: [String] = []
     public private(set) var settingsNotice: String?
+    /// Last Tap to Send outcome, shown in Home and Settings.
+    public private(set) var tapNotice: String?
+    /// nil until Tap to Send has been switched on once and the sensor was checked.
+    public private(set) var tapSensorAvailable: Bool?
     public let settings: AppSettings
 
     public let macName: String
@@ -103,6 +107,7 @@ public final class AppModel {
     private let scrcpy: ScrcpyManager
     private let downloadFolderBox = LockedValue(AppSettings.defaultDownloadFolder)
     private var wakeObserver: NSObjectProtocol?
+    private var tap: TapCoordinator?
 
     public init(macName: String, settings: AppSettings = AppSettings(),
                 historyStore: TransferHistoryStore = TransferHistoryStore()) {
@@ -162,17 +167,31 @@ public final class AppModel {
         }
         downloadFolderBox.set(settings.downloadFolder)
         let routes = FileRoutes()
+        let serverRef = ServerReference()
+        let tap = TapCoordinator(
+            send: { message, phone in serverRef.server?.send(message, to: phone) },
+            onEvent: { [weak self] event in
+                DispatchQueue.main.async { MainActor.assumeIsolated { self?.applyTap(event) } }
+            })
         let server = BridgeServer(identity: identity, store: store, deviceName: macName) { [weak self] event in
-            // File messages go straight to that phone's transfer queue; everything else to the UI, in order.
-            if case .featureMessage(let message, let device) = event, message.feature == Feature.files,
-               let service = routes.service(for: device.fingerprint) {
-                service.handle(message)
-                return
+            // File and tap messages go straight to their queues; everything else to the UI, in order.
+            if case .featureMessage(let message, let device) = event {
+                if message.feature == Feature.files, let service = routes.service(for: device.fingerprint) {
+                    service.handle(message)
+                    return
+                }
+                if message.feature == Feature.tap {
+                    tap.handle(message, from: device.fingerprint)
+                    return
+                }
             }
             DispatchQueue.main.async { MainActor.assumeIsolated { self?.apply(event) } }
         }
         self.fileRoutes = routes
         self.server = server
+        serverRef.server = server
+        self.tap = tap
+        tap.setEnabled(settings.tapEnabled)
         server.start()
         if settings.clipboardAutoSend { startClipboardWatch() }
         if settings.notificationsInMacCenter { Task { _ = await notifier.requestAuthorization() } }
@@ -185,6 +204,7 @@ public final class AppModel {
     private var fileRoutes: FileRoutes?
 
     public func stop() {
+        tap?.setEnabled(false)
         server?.stop()
         scrcpy.stop()
     }
@@ -337,6 +357,49 @@ public final class AppModel {
         }
     }
 
+    // MARK: - Tap to Send
+
+    public func setTapEnabled(_ enabled: Bool) {
+        settings.tapEnabled = enabled
+        tapNotice = nil
+        tap?.setEnabled(enabled)
+    }
+
+    private func applyTap(_ event: TapCoordinator.Event) {
+        func name(_ fingerprint: Fingerprint?) -> String {
+            phones.first { $0.device.fingerprint == fingerprint }?.device.name ?? "Your phone"
+        }
+        switch event {
+        case .availability(let sensor):
+            tapSensorAvailable = sensor
+        case .roundStarted:
+            tapNotice = "Tap noticed — checking the phone’s light…"
+        case .passed(let phone):
+            tapNotice = "\(name(phone)) is sending what’s on its screen."
+        case .declined(let phone, let why):
+            tapNotice = "\(name(phone)) didn’t take part: \(Self.tapReason(why))."
+        case .failed(let phone, let why):
+            tapNotice = "Tap didn’t go through\(phone == nil ? "" : " with \(name(phone))"): \(Self.tapReason(why))."
+        }
+    }
+
+    static func tapReason(_ code: String) -> String {
+        switch code {
+        case "off": "Tap to Send is off on the phone"
+        case "screen-off": "the phone’s screen was off"
+        case "locked": "the phone was locked"
+        case "paused-app": "a paused app (e.g. banking) was open"
+        case "busy": "the phone was busy"
+        case "timeout": "it took too long"
+        case "not-seen": "the Mac couldn’t see the phone’s flash"
+        case "declined": "no phone could take part"
+        case "other-phone": "another phone answered first"
+        case "phone-left": "the phone disconnected"
+        case "stopped": "Tap to Send was turned off"
+        default: code
+        }
+    }
+
     public func setClipboardEnabled(_ enabled: Bool) {
         settings.clipboardEnabled = enabled
         if !enabled { setClipboardAutoSend(false) }
@@ -459,6 +522,7 @@ public final class AppModel {
             phones.append(ConnectedPhone(device: device, address: address, features: features, connectedAt: Date()))
             selectedPhoneID = selectedPhoneID ?? device.fingerprint.hex
             if features.contains(Feature.files) { fileService(for: device).connectionChanged(connected: true) }
+            tap?.phoneConnected(device.fingerprint, supportsTap: features.contains(Feature.tap))
         case .phoneDisconnected(let device, let reason):
             if let phone = phones.first(where: { $0.device.fingerprint == device.fingerprint }) {
                 phone.notifications.forEach { notifier.remove(key: $0.key) }
@@ -467,6 +531,7 @@ public final class AppModel {
             phones.removeAll { $0.device.fingerprint == device.fingerprint }
             if selectedPhoneID == device.fingerprint.hex { selectedPhoneID = phones.last?.id }
             fileServices[device.fingerprint]?.connectionChanged(connected: false)
+            tap?.phoneDisconnected(device.fingerprint)
             lastDisconnect = (device.name, reason, Date())
         case .textReceived(let text, let device):
             appendChat(ChatLine(direction: .fromPhone, text: text, date: Date(), deviceName: device.name))

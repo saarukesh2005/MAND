@@ -34,7 +34,7 @@ class MandApp : Application() {
         notifications = NotificationBridge(this)
         calls = CallBridge(this, client, settings)
         val battery = BatteryReporter(this, client)
-        listOf(files, clipboard, notifications, battery, calls).forEach(client::register)
+        listOf(files, clipboard, notifications, battery, calls, dev.mand.android.tap.TapBridge(this)).forEach(client::register)
         battery.start()
         // Start watching call state once saved settings are loaded (only if the user turned it on).
         kotlinx.coroutines.MainScope().launch {

@@ -18,7 +18,22 @@ data class FeaturePrefs(
     val allowedApps: Set<String> = emptySet(),
     val callsEnabled: Boolean = false,
     val onboardingDone: Boolean = false,
-)
+    /** SMS one-time codes go to the Mac's clipboard (off by default). */
+    val otpToMac: Boolean = false,
+    /** Tap to Send never flashes or captures while one of these apps is in front. */
+    val tapPausedApps: Set<String> = DEFAULT_TAP_PAUSED,
+) {
+    companion object {
+        /** UPI and banking apps (and anything showing money) start paused; the user can edit the list. */
+        val DEFAULT_TAP_PAUSED = setOf(
+            "in.org.npci.upiapp", // BHIM
+            "com.google.android.apps.nbu.paisa.user", // Google Pay
+            "com.phonepe.app", "net.one97.paytm", "com.dreamplug.androidapp", // PhonePe, Paytm, CRED
+            "com.sbi.lotusintouch", "com.snapwork.hdfc", "com.csam.icici.bank.imobile", // SBI YONO, HDFC, ICICI
+            "com.axis.mobile", "com.msf.kbank.mobile", // Axis, Kotak
+        )
+    }
+}
 
 private val Context.featureStore by preferencesDataStore(name = "mand_features")
 
@@ -29,6 +44,8 @@ class FeatureSettings(private val context: Context) {
         val ALLOWED_APPS = stringSetPreferencesKey("notification_apps")
         val CALLS = booleanPreferencesKey("calls_enabled")
         val ONBOARDING_DONE = booleanPreferencesKey("onboarding_done")
+        val OTP_TO_MAC = booleanPreferencesKey("otp_to_mac")
+        val TAP_PAUSED = stringSetPreferencesKey("tap_paused_apps")
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -47,6 +64,8 @@ class FeatureSettings(private val context: Context) {
                     allowedApps = p[Keys.ALLOWED_APPS] ?: emptySet(),
                     callsEnabled = p[Keys.CALLS] ?: false,
                     onboardingDone = p[Keys.ONBOARDING_DONE] ?: false,
+                    otpToMac = p[Keys.OTP_TO_MAC] ?: false,
+                    tapPausedApps = p[Keys.TAP_PAUSED] ?: FeaturePrefs.DEFAULT_TAP_PAUSED,
                 )
                 loaded.complete(Unit) // only after the value above is visible
             }
@@ -59,6 +78,13 @@ class FeatureSettings(private val context: Context) {
     fun setClipboard(enabled: Boolean) = edit { it[Keys.CLIPBOARD] = enabled }
 
     fun setCalls(enabled: Boolean) = edit { it[Keys.CALLS] = enabled }
+
+    fun setOtpToMac(enabled: Boolean) = edit { it[Keys.OTP_TO_MAC] = enabled }
+
+    fun setTapPaused(packageName: String, paused: Boolean) = edit { prefs ->
+        val current = prefs[Keys.TAP_PAUSED] ?: FeaturePrefs.DEFAULT_TAP_PAUSED
+        prefs[Keys.TAP_PAUSED] = if (paused) current + packageName else current - packageName
+    }
 
     fun setOnboardingDone() = edit { it[Keys.ONBOARDING_DONE] = true }
 

@@ -417,11 +417,13 @@ class BridgeClient private constructor(private val context: Context) {
                     is Message.Error -> Log.i(TAG, "Mac reported error ${message.code}")
                     is Message.FileOffer, is Message.FileAccept, is Message.FileReject, is Message.FileChunk,
                     is Message.FileAck, is Message.FileDone, is Message.FileResult, is Message.FileCancel,
-                    is Message.ClipboardText, is Message.NotificationDismiss, is Message.CallActionRequest -> {
+                    is Message.ClipboardText, is Message.NotificationDismiss, is Message.CallActionRequest,
+                    is Message.TapGrab, is Message.TapSeen, is Message.TapResult -> {
                         val feature = when (message) {
                             is Message.ClipboardText -> Feature.CLIPBOARD
                             is Message.NotificationDismiss -> Feature.NOTIFICATIONS
                             is Message.CallActionRequest -> Feature.CALLS
+                            is Message.TapGrab, is Message.TapSeen, is Message.TapResult -> Feature.TAP
                             else -> Feature.FILES
                         }
                         // Only features the Mac announced in its hello are accepted.
@@ -516,7 +518,7 @@ class BridgeClient private constructor(private val context: Context) {
 
     companion object {
         private const val TAG = "MandBridge"
-        const val APP_VERSION = "0.3.0"
+        const val APP_VERSION = "0.4.0"
         private const val HANDSHAKE_TIMEOUT_MS = 10_000L
         private const val APPROVAL_TIMEOUT_MS = 5L * 60 * 1000
         private const val MAX_CHAT_LINES = 100

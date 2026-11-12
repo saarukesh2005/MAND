@@ -162,6 +162,18 @@ class FileTransferManager(private val context: Context, private val client: Brid
         count
     }
 
+    /** Sends a file M’AND created itself (e.g. a Tap to Send capture). The file is moved into the outbox. */
+    suspend fun sendOwnFile(file: File, name: String) = withContext(Dispatchers.IO) {
+        val id = UUID.randomUUID().toString()
+        val safe = runCatching { SafeFileName.components(name).last() }.getOrDefault("capture.png")
+        val target = File(File(outboxDir, id).apply { mkdirs() }, safe)
+        if (!file.renameTo(target)) {
+            file.copyTo(target, overwrite = true)
+            file.delete()
+        }
+        withContext(worker) { enqueue(id, target, safe) }
+    }
+
     fun cancel(id: String) {
         scope.launch {
             outgoing.remove(id)?.let { t ->

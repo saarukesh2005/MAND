@@ -17,6 +17,10 @@
     <!-- Calls on Mac (off by default; asked only when the user turns it on). -->
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <uses-permission android:name="android.permission.ANSWER_PHONE_CALLS" />
+    <!-- Tap to Send: SMS one-time codes to the Mac (off by default; asked only when turned on). -->
+    <uses-permission android:name="android.permission.RECEIVE_SMS" />
+    <!-- Calls and SMS features are optional: the app still installs on devices without a phone radio. -->
+    <uses-feature android:name="android.hardware.telephony" android:required="false" />
     <!-- Reconnect to the paired Mac after the phone restarts. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
@@ -99,6 +103,29 @@
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
         </service>
+
+        <!-- Tap to Send (the user turns it on in Accessibility settings). -->
+        <service
+            android:name=".tap.TapService"
+            android:exported="false"
+            android:label="@string/tap_service_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/tap_service" />
+        </service>
+
+        <receiver
+            android:name=".tap.OtpReceiver"
+            android:exported="true"
+            android:permission="android.permission.BROADCAST_SMS">
+            <intent-filter>
+                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+            </intent-filter>
+        </receiver>
 
         <receiver
             android:name=".system.BootReceiver"

@@ -1,6 +1,20 @@
 # Testing and verification status
 
-Nothing below says "verified" unless it was actually run. Last updated: 2026-10-20.
+Nothing below says "verified" unless it was actually run. Last updated: 2026-11-12.
+
+## Latest run — v0.4.0 (2026-11-12, on this Mac)
+
+| Check | Result |
+|---|---|
+| `scripts/test-mac.sh` | PASS: 81 tests (47 MandMacKit, 21 MandCore, 7 interop/TLS, 6 MandContext) |
+| `./gradlew :core:test` | PASS: 24 tests, 0 failures |
+| `./gradlew :app:testDebugUnitTest` (Robolectric Compose UI) | PASS: 9 tests, 0 failures |
+| `./gradlew :app:lintDebug` | PASS: 0 errors (warnings remain: battery-optimisation request, pinned TrustManager, static service refs) |
+| `./gradlew :app:assembleRelease` | PASS: `MAND-0.4.0.apk`, versionCode 4, target SDK 37, signer SHA-256 `0290691e…81c0b` (same key as earlier builds) |
+| `scripts/build-mac-app.sh` | PASS: arm64 app bundle, launches |
+| Tap to Send on real hardware | NOT RUN (needs the phone and the lid open) |
+
+The status table below is the original v0.1 baseline, kept for history.
 
 ## Status report
 
@@ -17,7 +31,7 @@ Nothing below says "verified" unless it was actually run. Last updated: 2026-10-
 
 ## How to run
 ```bash
-scripts/test-mac.sh                       # 43 Mac tests
+scripts/test-mac.sh                       # 81 Mac tests (v0.4.0)
 (cd android && ./gradlew :core:test)      # Kotlin core
 scripts/interop-test.sh                   # Swift server ↔ Kotlin client
 (cd android && ./gradlew :app:lintDebug)  # Android lint

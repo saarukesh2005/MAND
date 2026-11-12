@@ -40,7 +40,8 @@ import dev.mand.core.Feature
 
 /** Files, clipboard and notification sections of the home screen. Shown once a Mac is paired. */
 @Composable
-fun FeatureCards(app: MandApp, connected: Boolean, notificationAccess: Boolean, actions: FeatureActions) {
+fun FeatureCards(app: MandApp, connected: Boolean, notificationAccess: Boolean, actions: FeatureActions, tapEnabled: Boolean = false) {
+    TapCard(app, connected, tapEnabled, actions)
     FilesCard(app, connected, actions)
     ClipboardCard(app, connected)
     NotificationsCard(app, notificationAccess, actions)
@@ -57,7 +58,66 @@ class FeatureActions(
     val openNotificationAccess: () -> Unit,
     /** Asks for the phone permissions Calls on Mac needs; the callback says whether they were granted. */
     val requestCallPermissions: (onResult: (Boolean) -> Unit) -> Unit,
+    val openAccessibility: () -> Unit = {},
+    /** Asks for SMS permission (codes to the Mac); the callback says whether it was granted. */
+    val requestSms: (onResult: (Boolean) -> Unit) -> Unit = {},
 )
+
+@Composable
+private fun TapCard(app: MandApp, connected: Boolean, tapEnabled: Boolean, actions: FeatureActions) {
+    val prefs by app.settings.prefs.collectAsStateWithLifecycle()
+    var choosing by rememberSaveable { mutableStateOf(false) }
+    var smsDenied by rememberSaveable { mutableStateOf(false) }
+    SectionCard(
+        title = "Tap to Send",
+        subtitle = "Touch the top of your phone to your MacBook’s notch to send what’s on screen. Your Mac checks the " +
+            "screen’s light, so it only works when the phone is really on the notch.",
+    ) {
+        if (tapEnabled) {
+            Text(
+                if (connected && app.client.macSupports(dev.mand.core.Feature.TAP)) "Ready. Turn on Tap to Send on your Mac too (Settings)."
+                else "On. Waiting for your Mac to connect.",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        } else {
+            Text(
+                "Android needs you to switch on “M’AND Tap to Send” in Accessibility settings. If it’s greyed out, " +
+                    "open App info → ⋮ → “Allow restricted settings” first.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        OutlinedButton(onClick = actions.openAccessibility) { Text(if (tapEnabled) "Accessibility settings" else "Turn on Tap to Send") }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Paused in ${prefs.tapPausedApps.size} banking/UPI app(s)", modifier = Modifier.weight(1f))
+            TextButton(onClick = { choosing = true }) { Text("Edit") }
+        }
+        ToggleRow("Send SMS one-time codes to my Mac’s clipboard", prefs.otpToMac) { on ->
+            if (!on) {
+                app.settings.setOtpToMac(false)
+            } else {
+                actions.requestSms { granted ->
+                    smsDenied = !granted
+                    if (granted) app.settings.setOtpToMac(true)
+                }
+            }
+        }
+        if (smsDenied) {
+            Text("M’AND needs the SMS permission for this. You can allow it in Settings → Apps → M’AND → Permissions.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+        } else if (prefs.otpToMac) {
+            Text("Codes are copied on your Mac only if Clipboard sharing is on there.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+    if (choosing) {
+        PackagePicker(
+            title = "Pause Tap to Send in",
+            selected = prefs.tapPausedApps,
+            onToggle = { pkg, on -> app.settings.setTapPaused(pkg, on) },
+            onDismiss = { choosing = false },
+        )
+    }
+}
 
 @Composable
 private fun CallsCard(app: MandApp, actions: FeatureActions) {
@@ -201,7 +261,11 @@ private fun NotificationsCard(app: MandApp, notificationAccess: Boolean, actions
 }
 
 @Composable
-private fun AppPicker(app: MandApp, allowed: Set<String>, onDismiss: () -> Unit) {
+private fun AppPicker(app: MandApp, allowed: Set<String>, onDismiss: () -> Unit) =
+    PackagePicker("Share notifications from", allowed, { pkg, on -> app.settings.setAppAllowed(pkg, on) }, onDismiss)
+
+@Composable
+private fun PackagePicker(title: String, selected: Set<String>, onToggle: (String, Boolean) -> Unit, onDismiss: () -> Unit) {
     val context = LocalContext.current
     val apps = remember {
         val pm = context.packageManager
@@ -214,12 +278,12 @@ private fun AppPicker(app: MandApp, allowed: Set<String>, onDismiss: () -> Unit)
     }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Share notifications from") },
+        title = { Text(title) },
         text = {
             LazyColumn(Modifier.heightIn(max = 420.dp)) {
                 items(apps, key = { it.first }) { (pkg, label) ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(checked = pkg in allowed, onCheckedChange = { app.settings.setAppAllowed(pkg, it) })
+                        Checkbox(checked = pkg in selected, onCheckedChange = { onToggle(pkg, it) })
                         Text(label)
                     }
                 }

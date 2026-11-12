@@ -38,6 +38,13 @@ class MainActivity : ComponentActivity() {
     private val client get() = app.client
     private var permissions by mutableStateOf(PermissionStatus(notifications = false, batteryUnrestricted = false))
     private var notificationAccess by mutableStateOf(false)
+    private var tapEnabled by mutableStateOf(false)
+    private var pendingSmsResult: ((Boolean) -> Unit)? = null
+
+    private val smsPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        pendingSmsResult?.invoke(granted)
+        pendingSmsResult = null
+    }
     private var phoneCode by mutableStateOf<String?>(null)
     private var pendingCallResult: ((Boolean) -> Unit)? = null
 
@@ -114,7 +121,19 @@ class MainActivity : ComponentActivity() {
                                     pickFiles = { filePicker.launch(arrayOf("*/*")) },
                                     openNotificationAccess = ::openNotificationAccess,
                                     requestCallPermissions = ::requestCallPermissions,
+                                    openAccessibility = {
+                                        startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                                    },
+                                    requestSms = { onResult ->
+                                        if (checkSelfPermission(Manifest.permission.RECEIVE_SMS) == PackageManager.PERMISSION_GRANTED) {
+                                            onResult(true)
+                                        } else {
+                                            pendingSmsResult = onResult
+                                            smsPermission.launch(Manifest.permission.RECEIVE_SMS)
+                                        }
+                                    },
                                 ),
+                                tapEnabled = tapEnabled,
                             )
                         },
                     )
@@ -194,6 +213,7 @@ class MainActivity : ComponentActivity() {
 
     private fun refreshPermissions() {
         notificationAccess = app.notifications.hasAccess()
+        tapEnabled = dev.mand.android.tap.TapService.isEnabled(this)
         permissions = PermissionStatus(
             notifications = checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED,
             batteryUnrestricted = getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName),

@@ -98,15 +98,15 @@ Last updated: 2026-11-12.
 |---|---|---|---|
 | Read the notch light sensor (private IOHID API, opt-in) | TESTED | n/a | real sensor read on this Mac (lid closed → 0 lux); MandMacKit Tap tests use a fake sensor |
 | Room baseline + DIP / RISE triggers | TESTED | n/a | TapTests (synthetic readings) |
-| Light-key judge (white seen → black falls, blocks room light) | TESTED | NOT_STARTED | 10 judge tests: phone, hand, lamp, too far, dark room, timeouts |
+| Light-key judge (white seen → black falls, blocks room light) | TESTED | n/a | 10 judge tests: phone, hand, lamp, too far, dark room, timeouts |
 | Learned contact level per phone | TESTED | n/a | ContactLearner test |
 | `tap.v1` protocol | TESTED | TESTED | shared vectors + round-trips in both languages |
-| Round coordination (grab / seen / result, knock = that phone only) | TESTED | NOT_STARTED | TapCoordinatorTests |
-| Phone: proximity "knock", white/black flash overlay | n/a | NOT_STARTED | planned: Accessibility overlay (no draw-over-apps permission) |
-| Phone: send what's on screen (screenshot; original file; circled text) | n/a | NOT_STARTED | |
-| SMS one-time codes → Mac clipboard (opt-in, RECEIVE_SMS) | NOT_STARTED | NOT_STARTED | |
-| Pause in banking/UPI apps (editable list) | n/a | NOT_STARTED | |
-| Settings toggle + sensor test meter (Mac) | NOT_STARTED | n/a | |
+| Round coordination (grab / seen / result, knock = that phone only) | TESTED | IMPLEMENTED | TapCoordinatorTests; Android side compiles and passes lint, not run on a phone |
+| Phone: proximity "knock", white/black flash overlay | n/a | IMPLEMENTED | `tap/TapService.kt`: Accessibility overlay (no draw-over-apps permission); not yet run on a phone |
+| Phone: send what's on screen (screenshot; original file; circled text) | n/a | IMPLEMENTED (screenshot only) | AccessibilityService.takeScreenshot → file.v1; original-file and circled-text modes not started |
+| SMS one-time codes → Mac clipboard (opt-in, RECEIVE_SMS) | IMPLEMENTED | IMPLEMENTED | `Otp.find` TESTED (3 tests); receiver sends via clipboard.v1; not run on a phone |
+| Pause in banking/UPI apps (editable list) | n/a | IMPLEMENTED | default list of 10 UPI/bank apps, editable in the Tap card |
+| Settings toggle + status line (Mac) | IMPLEMENTED | n/a | Settings → Tap to Send (off by default), outcome shown in Home; live lux meter not started |
 | Real tap on hardware | BLOCKED | BLOCKED | needs the lid open and the Pixel connected |
 
 ## Context Engine
