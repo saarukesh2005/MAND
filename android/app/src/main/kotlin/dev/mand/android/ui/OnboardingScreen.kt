@@ -1,6 +1,7 @@
 package dev.mand.android.ui
 
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -48,7 +49,7 @@ fun OnboardingScreen(
 ) {
     val pages = buildList {
         add(OnboardingPage(Icons.Outlined.Devices, "Your phone. Your Mac. One ecosystem.",
-            "Send files both ways, share copied text, and see notifications, battery and calls on your Mac."))
+            "Send files both ways, share copied text, find your phone, and see notifications, battery and calls on your Mac."))
         add(OnboardingPage(Icons.Outlined.Lock, "Private by design",
             "M’AND connects directly over your own Wi-Fi, encrypted end to end. No cloud and no account. " +
                 "Clipboard, notification and call sharing stay off until you turn them on."))
@@ -62,11 +63,12 @@ fun OnboardingScreen(
     val isLast = index >= pages.lastIndex
 
     Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
-        Column(
-            Modifier.safeDrawingPadding().padding(Space.XL),
-            verticalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Column(Modifier.fillMaxWidth().padding(top = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.safeDrawingPadding().padding(Space.XL)) {
+            // Scrolls with large text sizes; the buttons stay visible below.
+            Column(
+                Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(top = Space.XL),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
                 Icon(page.icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(64.dp))
                 Spacer(Modifier.height(Space.XL))
                 Text(page.title, style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
@@ -78,12 +80,13 @@ fun OnboardingScreen(
                 Text("Step ${index + 1} of ${pages.size}", style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = Space.M)) {
                 TextButton(onClick = { onFinish(false) }) { Text("Skip") }
                 Spacer(Modifier.weight(1f))
                 when {
                     !isLast -> Button(onClick = { index++ }) { Text("Continue") }
-                    needsLocalNetwork -> Button(onClick = { requestLocalNetwork(); onFinish(true) }) { Text("Allow and pair") }
+                    // Pairing starts once Android's permission prompt is answered (MainActivity), so the two never overlap.
+                    needsLocalNetwork -> Button(onClick = requestLocalNetwork) { Text("Allow and pair") }
                     else -> Button(onClick = { onFinish(true) }) { Text("Pair with my Mac") }
                 }
             }

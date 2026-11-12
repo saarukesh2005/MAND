@@ -99,4 +99,8 @@ final class UIState {
     var deviceToForget: PairedDevice?
     var isDropTargeted = false
     var onboardingPage = 0
+    var linkDraft = ""
+    var isLinkSheetShown = false
+    var deviceToRename: PairedDevice?
+    var renameDraft = ""
 }

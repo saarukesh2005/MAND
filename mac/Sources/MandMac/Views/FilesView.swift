@@ -139,7 +139,9 @@ private struct TransferRow: View {
             let done = ByteCountFormatter.string(fromByteCount: item.transferred, countStyle: .file)
             let speed = item.bytesPerSecond > 0
                 ? " · " + ByteCountFormatter.string(fromByteCount: Int64(item.bytesPerSecond), countStyle: .file) + "/s" : ""
-            return "\(done) of \(size)\(speed)"
+            let left = Friendly.secondsRemaining(size: item.size, transferred: item.transferred,
+                                                 bytesPerSecond: item.bytesPerSecond).map { " · " + Friendly.timeLeft($0) } ?? ""
+            return "\(done) of \(size)\(speed)\(left)"
         case .interrupted: return "Connection lost — will continue automatically"
         case .done: return item.direction == .incoming ? "Received · \(size)" : "Sent · \(size)"
         case .alreadyThere: return "Already there — not copied again"

@@ -10,7 +10,9 @@ object Feature {
     const val NOTIFICATIONS = "notifications.v1"
     const val CALLS = "calls.v1"
     const val TAP = "tap.v1"
-    val ALL = listOf(FILES, CLIPBOARD, DEVICE, NOTIFICATIONS, CALLS, TAP)
+    const val FIND = "find.v1"
+    const val LINK = "link.v1"
+    val ALL = listOf(FILES, CLIPBOARD, DEVICE, NOTIFICATIONS, CALLS, TAP, FIND, LINK)
 }
 
 /** The `hello` body (protocol §3). */
@@ -67,6 +69,12 @@ sealed class Message(val type: String) {
     data class TapLight(val round: Long, val on: Boolean) : Message("tap.light")
     data class TapSeen(val round: Long) : Message("tap.seen")
     data class TapResult(val round: Long, val ok: Boolean, val why: String?) : Message("tap.result")
+    data class DeviceInfo(val model: String, val os: String, val storageFree: Long, val storageTotal: Long) :
+        Message("device.info")
+    data object FindRing : Message("find.ring")
+    data object FindStop : Message("find.stop")
+    data class FindState(val ringing: Boolean) : Message("find.state")
+    data class LinkOpen(val url: String, val title: String?) : Message("link.open")
     data class Unknown(val unknownType: String) : Message(unknownType)
 
     enum class CallState(val wire: String) { RINGING("ringing"), ACTIVE("active"), IDLE("idle") }
@@ -78,6 +86,7 @@ sealed class Message(val type: String) {
         const val MAX_CLIPBOARD_BYTES = 262_144
         const val MAX_FILE_CHUNK_BYTES = 196_608
         const val MAX_FILE_SIZE = 1L shl 40
+        const val MAX_STORAGE_BYTES = 1L shl 50
     }
 }
 
@@ -107,4 +116,31 @@ fun String.truncatedToUtf8Bytes(maxBytes: Int): String {
         index += Character.charCount(codePoint)
     }
     return result.toString()
+}
+
+/** Rules for `link.open` URLs: only web links, so a paired device can never open apps, files or scripts. */
+object LinkRules {
+    const val MAX_URL_BYTES = 2_048
+    const val MAX_TITLE_BYTES = 256
+
+    fun isValid(url: String): Boolean {
+        if (url.isEmpty() || url.utf8Size() > MAX_URL_BYTES) return false
+        if (url.any { it.code <= 0x20 || it.code == 0x7f }) return false
+        val lower = url.lowercase()
+        val rest = when {
+            lower.startsWith("https://") -> lower.substring(8)
+            lower.startsWith("http://") -> lower.substring(7)
+            else -> return false
+        }
+        val host = rest.substringBefore('/')
+        return host.isNotEmpty() && !host.startsWith("@")
+    }
+
+    /** The first web link in shared text, if the text is essentially just a link (with an optional title). */
+    fun extract(text: String?): String? {
+        if (text == null) return null
+        val candidate = text.trim().split(Regex("\\s+")).lastOrNull { it.startsWith("http://", true) || it.startsWith("https://", true) }
+            ?: return null
+        return candidate.takeIf(::isValid)
+    }
 }

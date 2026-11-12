@@ -18,12 +18,26 @@ struct DevicesView: View {
             } else {
                 List {
                     ForEach(model.devices) { device in
-                        DeviceRow(device: device, isConnected: model.isConnected(device)) {
-                            ui.deviceToForget = device
-                        }
+                        DeviceRow(device: device, isConnected: model.isConnected(device),
+                                  onRename: {
+                                      ui.renameDraft = device.name
+                                      ui.deviceToRename = device
+                                  },
+                                  onForget: { ui.deviceToForget = device })
                     }
                 }
             }
+        }
+        .alert("Rename phone", isPresented: Binding(get: { ui.deviceToRename != nil },
+                                                    set: { if !$0 { ui.deviceToRename = nil } }),
+               presenting: ui.deviceToRename) { device in
+            @Bindable var ui = ui
+            TextField("Name", text: $ui.renameDraft)
+            Button("Rename") { model.renameDevice(device, to: ui.renameDraft) }
+            Button("Use Phone’s Own Name") { model.renameDevice(device, to: "") }
+            Button("Cancel", role: .cancel) {}
+        } message: { _ in
+            Text("This name is only used on this Mac.")
         }
         .confirmationDialog("Forget “\(ui.deviceToForget?.name ?? "")”?",
                             isPresented: Binding(get: { ui.deviceToForget != nil }, set: { if !$0 { ui.deviceToForget = nil } }),
@@ -38,6 +52,7 @@ struct DevicesView: View {
 private struct DeviceRow: View {
     let device: PairedDevice
     let isConnected: Bool
+    let onRename: () -> Void
     let onForget: () -> Void
 
     var body: some View {
@@ -49,10 +64,12 @@ private struct DeviceRow: View {
                 Text("Security code \(device.fingerprint.shortDisplay)").font(.caption2.monospaced()).foregroundStyle(.tertiary)
             }
             Spacer()
+            Button("Rename…", action: onRename)
             Button("Forget…", action: onForget)
         }
         .padding(.vertical, 6)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("\(device.name), \(detail)")
     }
 
     private var detail: String {

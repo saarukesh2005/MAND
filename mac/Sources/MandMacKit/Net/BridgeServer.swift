@@ -40,6 +40,8 @@ public final class BridgeServer: @unchecked Sendable {
         /// A feature message (files, clipboard, device, notifications, calls) from a connected phone.
         case featureMessage(Message, from: PairedDevice)
         case phoneDisconnected(PairedDevice, reason: String)
+        /// Round-trip time of the latest ping to a connected phone.
+        case latency(PairedDevice, milliseconds: Int)
         case textReceived(String, from: PairedDevice)
         case log(String)
     }
@@ -312,6 +314,13 @@ public final class BridgeServer: @unchecked Sendable {
         case (_, .error(let code, _)):
             emit(.log("Phone reported an error: \(code)"))
 
+        case (.ready, .pong):
+            // One ping is outstanding at a time, so the next pong answers it.
+            if let sent = session.pingOutstanding, let device = session.device {
+                session.pingOutstanding = nil
+                emit(.latency(device, milliseconds: max(0, Int(Date().timeIntervalSince(sent) * 1000))))
+            }
+
         case (_, .pong), (_, .unknown), (.awaitingApproval, _):
             break
 
@@ -373,6 +382,7 @@ public final class BridgeServer: @unchecked Sendable {
         let seen = markSeen(device.fingerprint, address: session.framed.remoteAddress, name: session.helloName) ?? device
         session.device = seen
         emit(.phoneConnected(seen, address: session.framed.remoteAddress, features: session.features))
+        session.lastPingSent = .distantPast // measure latency on the next tick
         emit(.log("\(seen.name) connected"))
     }
 
@@ -407,6 +417,7 @@ public final class BridgeServer: @unchecked Sendable {
                     session.framed.close(reason: "no response for 45 seconds")
                 } else if now.timeIntervalSince(session.lastPingSent) >= ConnectionTiming.pingInterval {
                     session.lastPingSent = now
+                    session.pingOutstanding = now
                     session.framed.send(.ping, version: session.version)
                 }
             case .awaitingHello, .awaitingPairRequest:
@@ -514,6 +525,7 @@ final class Session {
     var version = ProtocolVersion.current
     var device: PairedDevice?
     var lastPingSent = Date()
+    var pingOutstanding: Date?
     var approvalRequestedAt: Date?
     var features: Set<String> = []
 
@@ -523,5 +535,5 @@ final class Session {
 }
 
 public enum AppInfo {
-    public static let version = "0.4.0"
+    public static let version = "0.5.0"
 }

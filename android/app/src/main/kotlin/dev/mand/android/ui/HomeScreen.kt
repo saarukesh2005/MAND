@@ -46,7 +46,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
@@ -108,17 +114,17 @@ fun HomeScreen(
             if (state !is LinkState.NotPaired) {
                 if (!permissions.notifications) {
                     SetupCard(Icons.Outlined.Notifications, "Show connection status",
-                        "Allow notifications so M’AND can show whether it’s connected.", "Allow", actions.requestNotifications)
+                        "Allow notifications so M’AND can show whether it’s connected.", "Allow notifications", actions.requestNotifications)
                 }
                 if (!permissions.batteryUnrestricted) {
                     SetupCard(Icons.Outlined.BatteryAlert, "Stay connected in the background",
                         "Android may cut the connection to save battery. Allow M’AND to run unrestricted.",
-                        "Allow", actions.requestBatteryExemption)
+                        "Keep M’AND connected", actions.requestBatteryExemption)
                 }
             }
             if (paired) {
                 features(state is LinkState.Connected)
-                Row(horizontalArrangement = Arrangement.spacedBy(Space.S)) {
+                ButtonRow {
                     if (state is LinkState.Paused) OutlinedButton(onClick = actions.resume) { Text("Reconnect") }
                     else OutlinedButton(onClick = actions.pause) { Text("Pause connection") }
                     TextButton(onClick = { confirmForget = true }) {
@@ -159,10 +165,11 @@ internal fun StatusHero(state: LinkState, phoneSecurityCode: String?, actions: H
                 Icon(look.icon, contentDescription = null, tint = look.tint)
             }
             Spacer(Modifier.width(Space.L))
-            Column(Modifier.weight(1f)) {
+            // Read as one sentence, and announced by TalkBack whenever the status changes.
+            Column(Modifier.weight(1f).semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }) {
                 Text(
-                    look.chip.uppercase(),
-                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                    look.chip,
+                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
                     color = look.tint,
                     modifier = Modifier.semantics { contentDescription = "Status: ${look.chip}" },
                 )
@@ -171,10 +178,13 @@ internal fun StatusHero(state: LinkState, phoneSecurityCode: String?, actions: H
             }
         }
         if (state is LinkState.Pairing && state.step == LinkState.Pairing.Step.WAITING_FOR_APPROVAL) {
+            Text("Check that your Mac shows the same code. If it doesn’t, cancel on the Mac.",
+                style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = Space.M))
             Text(
-                "Check that your Mac shows this security code:\n${phoneSecurityCode ?: "…"}",
-                style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
-                modifier = Modifier.padding(top = Space.M),
+                phoneSecurityCode ?: "…",
+                style = MaterialTheme.typography.headlineSmall.copy(fontFamily = FontFamily.Monospace),
+                // Spoken character by character so it can be compared.
+                modifier = Modifier.semantics { contentDescription = (phoneSecurityCode ?: "").toList().joinToString(" ") },
             )
         }
         when (state) {
@@ -189,7 +199,7 @@ internal fun StatusHero(state: LinkState, phoneSecurityCode: String?, actions: H
             is LinkState.NeedsPermission -> Button(
                 onClick = actions.requestLocalNetwork,
                 modifier = Modifier.fillMaxWidth().padding(top = Space.M),
-            ) { Text("Allow Nearby devices") }
+            ) { Text("Allow finding my Mac") }
             is LinkState.Searching -> if (state.resting) {
                 OutlinedButton(onClick = actions.retry, modifier = Modifier.padding(top = Space.M)) { Text("Try again now") }
             }
@@ -214,10 +224,10 @@ private fun describe(state: LinkState): StatusLook {
     val warn = MaterialTheme.colorScheme.error
     return when (state) {
         is LinkState.Connected -> StatusLook(Icons.Outlined.Laptop, accent, "Connected", state.macName,
-            "Encrypted · local network")
+            "Connected safely over your Wi-Fi")
         is LinkState.Searching -> if (state.resting) {
-            StatusLook(Icons.Outlined.Sync, muted, "Resting", "Can’t reach ${state.macName}",
-                "Checking every few minutes to save battery, and right away when your Wi-Fi changes.")
+            StatusLook(Icons.Outlined.Sync, muted, "Not connected", "Can’t reach ${state.macName}",
+                "Open M’AND on your Mac and join the same Wi-Fi. M’AND keeps trying automatically.")
         } else {
             StatusLook(Icons.Outlined.Sync, muted, "Looking", "Looking for ${state.macName}",
                 state.lastError ?: "Make sure M’AND is open on the Mac and both are on the same Wi-Fi.", busy = true)
@@ -225,7 +235,7 @@ private fun describe(state: LinkState): StatusLook {
         is LinkState.Offline -> StatusLook(Icons.Outlined.CloudOff, muted, "Offline", "No network",
             "M’AND will reconnect to ${state.macName} as soon as you’re back on Wi-Fi.")
         is LinkState.NeedsPermission -> StatusLook(Icons.Outlined.WifiFind, warn, "Permission needed",
-            "One permission needed", "Android needs your OK before M’AND can reach ${state.macName} on your Wi-Fi.")
+            "One permission needed", "Android will ask once. Tap Allow so your phone can find ${state.macName} on Wi-Fi.")
         is LinkState.Pairing -> when (state.step) {
             LinkState.Pairing.Step.CONNECTING -> StatusLook(Icons.Outlined.Sync, muted, "Pairing", "Connecting…",
                 "Reaching ${state.macName.ifBlank { "your Mac" }} securely.", busy = true)
@@ -256,20 +266,20 @@ private fun Steps() {
 private fun MessagesCard(chat: List<ChatLine>, send: (String) -> Boolean) {
     var draft by rememberSaveable { mutableStateOf("") }
     MandCard(title = "Messages", subtitle = "Send a quick note to your Mac.") {
+        if (chat.isEmpty()) Hint("No messages yet. Anything you send appears on your Mac.")
         chat.takeLast(6).forEach { line ->
             Text((if (line.fromMac) "Mac: " else "You: ") + line.text, style = MaterialTheme.typography.bodyMedium)
         }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(
-                value = draft,
-                onValueChange = { draft = it },
-                placeholder = { Text("Type a message") },
-                singleLine = true,
-                modifier = Modifier.weight(1f),
-            )
-            Spacer(Modifier.width(Space.S))
-            Button(onClick = { if (send(draft)) draft = "" }, enabled = draft.isNotBlank()) { Text("Send") }
-        }
+        OutlinedTextField(
+            value = draft,
+            onValueChange = { draft = it },
+            label = { Text("Message") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+            keyboardActions = KeyboardActions(onSend = { if (draft.isNotBlank() && send(draft)) draft = "" }),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Button(onClick = { if (send(draft)) draft = "" }, enabled = draft.isNotBlank()) { Text("Send") }
     }
 }
 
@@ -281,18 +291,16 @@ private fun TroubleshootingCard(setManualHost: (String) -> Unit) {
             "Open M’AND on the Mac.",
             "Use the same Wi-Fi on both (guest networks often block devices from seeing each other).",
             "If macOS asked about Local Network access for M’AND, choose Allow.",
-        ).forEach { Tip(it) }
-        Text(
-            "Or enter the Mac’s address (shown on the Mac under “Can’t connect?”):",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        ).forEachIndexed { index, tip -> Tip("${index + 1}. $tip") }
+        Hint("Still stuck? Type the Mac’s address. The Mac shows it under “Can’t connect?”.")
+        OutlinedTextField(
+            value = host, onValueChange = { host = it }, singleLine = true,
+            label = { Text("Mac’s address") }, placeholder = { Text("192.168.1.20") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { setManualHost(host) }),
+            modifier = Modifier.fillMaxWidth(),
         )
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(value = host, onValueChange = { host = it }, singleLine = true,
-                placeholder = { Text("192.168.1.20") }, modifier = Modifier.weight(1f))
-            Spacer(Modifier.width(Space.S))
-            OutlinedButton(onClick = { setManualHost(host) }) { Text("Try") }
-        }
+        OutlinedButton(onClick = { setManualHost(host) }, enabled = host.isNotBlank()) { Text("Connect") }
     }
 }
 
@@ -303,20 +311,17 @@ private fun SetupCard(icon: ImageVector, title: String, body: String, button: St
             Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
             Spacer(Modifier.width(Space.M))
             Column(Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.titleSmall)
-                Text(body, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(title, style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
+                Text(body, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            TextButton(onClick = onClick) { Text(button) }
         }
+        OutlinedButton(onClick = onClick) { Text(button) }
     }
 }
 
 @Composable
 private fun Tip(text: String) {
     Row(Modifier.padding(vertical = 2.dp)) {
-        Icon(Icons.Outlined.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp).padding(top = 2.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.width(Space.S))
         Text(text, style = MaterialTheme.typography.bodyMedium)
     }
 }

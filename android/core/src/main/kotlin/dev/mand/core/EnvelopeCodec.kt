@@ -79,6 +79,19 @@ object EnvelopeCodec {
             battery = long(body["battery"], 0L..100L).toInt(),
             charging = boolean(body["charging"]) ?: malformed(),
         )
+        "device.info" -> Message.DeviceInfo(
+            model = required(body["model"], Message.MAX_NAME_BYTES),
+            os = required(body["os"], 64),
+            storageFree = long(body["storageFree"], 0..Message.MAX_STORAGE_BYTES),
+            storageTotal = long(body["storageTotal"], 0..Message.MAX_STORAGE_BYTES),
+        )
+        "find.ring" -> Message.FindRing
+        "find.stop" -> Message.FindStop
+        "find.state" -> Message.FindState(boolean(body["ringing"]) ?: malformed())
+        "link.open" -> Message.LinkOpen(
+            url = required(body["url"], LinkRules.MAX_URL_BYTES).takeIf(LinkRules::isValid) ?: malformed(),
+            title = optional(body["title"], LinkRules.MAX_TITLE_BYTES),
+        )
         "notification.posted" -> Message.NotificationPosted(
             key = required(body["key"], 256),
             app = required(body["app"], 256),
@@ -210,7 +223,19 @@ object EnvelopeCodec {
                 put("ok", message.ok)
                 message.why?.let { put("why", it) }
             }
-            Message.SessionReady, Message.Ping, Message.TapKnock, is Message.Unknown -> Unit
+            is Message.DeviceInfo -> {
+                put("model", message.model)
+                put("os", message.os)
+                put("storageFree", message.storageFree)
+                put("storageTotal", message.storageTotal)
+            }
+            is Message.FindState -> put("ringing", message.ringing)
+            is Message.LinkOpen -> {
+                put("url", message.url)
+                message.title?.let { put("title", it) }
+            }
+            Message.SessionReady, Message.Ping, Message.TapKnock, Message.FindRing, Message.FindStop,
+            is Message.Unknown -> Unit
         }
     }
 

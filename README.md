@@ -50,7 +50,10 @@ Every sharing feature starts **off** until you turn it on.
 | **Files both ways:** drag and drop, Share sheet, progress, resume, SHA-256 check | ✅ | ✅ |
 | **Clipboard text:** passwords are never sent | ✅ | ✅ |
 | **Phone notifications on the Mac:** you choose the apps | ✅ | ✅ |
-| **Battery level and charging** | ✅ | ✅ |
+| **Battery, phone model, free storage and connection quality** | ✅ | ✅ |
+| **Find my phone:** make it ring loudly from the Mac, even on silent | ✅ | ✅ |
+| **Links:** share a web page to M’AND and it opens on the Mac, or send one from the Mac to the phone | ✅ | ✅ |
+| **Rename** your phone on the Mac, and see **time left** on transfers | ✅ | ✅ |
 | **Calls:** see who's calling, answer or decline from the Mac (audio stays on the phone) | ✅ | ✅ |
 | **Tap to Send** (experimental): hold the phone against the MacBook notch to send what's on screen | ✅ | ✅ |
 | **SMS one-time codes** go to the Mac clipboard | ✅ | ✅ |
@@ -59,13 +62,22 @@ Every sharing feature starts **off** until you turn it on.
 
 **Honest status:**
 - Tested by the author on a Pixel 7a: pairing, files, clipboard, notifications and battery.
-- Built and tested automatically, but **not yet tried on a real phone**: calls, Quick Share, Tap to Send, SMS codes and mirroring.
+- Built and tested automatically, but **not yet tried on a real phone**: calls, find my phone, links, Quick Share, Tap to Send, SMS codes and mirroring.
 - [docs/TESTING.md](docs/TESTING.md) has every result.
 
 **Tap to Send notes:**
 - It reads the MacBook's notch light sensor through an undocumented macOS interface, so a macOS update could break it. It needs a MacBook with a notch and the lid open.
 - On the phone, it needs **M’AND Tap to Send** turned on in Accessibility settings. If Android greys it out, open **App info → ⋮ → Allow restricted settings** first.
 - It stays paused while banking and UPI apps are open.
+
+## Made for everyone
+
+- Big, labelled buttons for the things people do most.
+- Plain words instead of jargon.
+- Every feature that shares something starts off, with its switch right on the home screen.
+- Works with VoiceOver and TalkBack, large text sizes (up to 200 % on Android) and Reduce Motion.
+- Colours meet WCAG AA contrast.
+- Problems always say what to do next.
 
 ## Build it yourself
 
@@ -83,7 +95,7 @@ cd android && ./gradlew :app:assembleRelease
 
 **Tests**
 ```bash
-scripts/test-mac.sh                                    # Mac: 81 tests
+scripts/test-mac.sh                                    # Mac: 87 tests
 (cd android && ./gradlew :core:test :app:testDebugUnitTest :app:lintDebug)
 scripts/interop-test.sh                                # Swift server ↔ Kotlin/Java TLS client
 ```

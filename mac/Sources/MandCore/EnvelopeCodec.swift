@@ -82,6 +82,21 @@ public enum EnvelopeCodec {
         case "device.status":
             guard let charging = boolean(body["charging"]) else { throw .malformed }
             return .deviceStatus(battery: Int(try int64(body["battery"], in: 0...100)), charging: charging)
+        case "device.info":
+            return .deviceInfo(DeviceInfo(
+                model: try requiredString(body["model"], maxBytes: Message.maxNameBytes),
+                os: try requiredString(body["os"], maxBytes: 64),
+                storageFree: try int64(body["storageFree"], in: 0...Message.maxStorageBytes),
+                storageTotal: try int64(body["storageTotal"], in: 0...Message.maxStorageBytes)))
+        case "find.ring": return .findRing
+        case "find.stop": return .findStop
+        case "find.state":
+            guard let ringing = boolean(body["ringing"]) else { throw .malformed }
+            return .findState(ringing: ringing)
+        case "link.open":
+            let url = try requiredString(body["url"], maxBytes: LinkRules.maxURLBytes)
+            guard LinkRules.isValid(url) else { throw .malformed }
+            return .linkOpen(url: url, title: try optionalString(body["title"], maxBytes: LinkRules.maxTitleBytes))
         case "notification.posted":
             return .notificationPosted(PhoneNotification(
                 key: try requiredString(body["key"], maxBytes: 256),
@@ -199,7 +214,11 @@ public enum EnvelopeCodec {
         case .callState(let state, let caller):
             caller.map { ["state": state.rawValue, "caller": $0] } ?? ["state": state.rawValue]
         case .callAction(let action): ["action": action.rawValue]
-        case .tapKnock: [:]
+        case .tapKnock, .findRing, .findStop: [:]
+        case .deviceInfo(let info):
+            ["model": info.model, "os": info.os, "storageFree": info.storageFree, "storageTotal": info.storageTotal]
+        case .findState(let ringing): ["ringing": ringing]
+        case .linkOpen(let url, let title): title.map { ["url": url, "title": $0] } ?? ["url": url]
         case .tapGrab(let round, let dark): ["round": round, "dark": dark]
         case .tapDecline(let round, let why): ["round": round, "why": why]
         case .tapLight(let round, let on): ["round": round, "on": on]

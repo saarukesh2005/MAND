@@ -73,6 +73,10 @@ These are new message types under protocol version 1. Older apps ignore them, as
 | `notifications.v1` | `notification.posted`, `notification.removed`, `notification.dismiss` |
 | `calls.v1` | `call.state`, `call.action` |
 | `tap.v1` | `tap.grab`, `tap.light`, `tap.seen`, `tap.result`, `tap.knock`, `tap.decline` |
+| `find.v1` | `find.ring`, `find.stop`, `find.state` |
+| `link.v1` | `link.open` |
+
+`device.v1` also carries `device.info` (added in 0.5; older Macs ignore it as an unknown type).
 
 ### File transfer (`file.v1`)
 
@@ -120,6 +124,35 @@ How a transfer runs:
 
 ### Device status (`device.v1`)
 `device.status {battery, charging}`: battery is an integer from 0 to 100; charging is a boolean. The phone sends it when connected and whenever either value changes.
+
+### Phone details (`device.info`, part of `device.v1`)
+
+`device.info {model, os, storageFree, storageTotal}`, phone → Mac, sent on connect:
+- **`model`:** 1–128 bytes, for example "Pixel 7a".
+- **`os`:** 1–64 bytes, for example "Android 16".
+- **Storage fields:** integers from 0 to 2^50 bytes.
+
+### Find my phone (`find.v1`)
+
+| type | direction | body |
+|---|---|---|
+| `find.ring` | Mac → phone | `{}`: play a loud sound (alarm volume, so it's heard on silent) and vibrate |
+| `find.stop` | Mac → phone | `{}`: stop |
+| `find.state` | phone → Mac | `{ringing}`: boolean, sent when the sound starts and stops |
+
+The phone stops by itself after 60 seconds, or when the user presses Stop on the phone.
+
+### Links (`link.v1`)
+
+`link.open {url, title?}`, either direction, sent only after a deliberate user action (Share → M’AND, or "Open Link on Phone").
+
+- **`url`:** 1–2,048 bytes. It must start with `http://` or `https://` (any case) and have a non-empty host. Control characters and spaces are not allowed.
+- **Everything else is rejected as `malformed`.** This includes `file:`, `javascript:`, `intent:` and custom app schemes, so a paired device can only ever open web pages.
+- **`title`:** optional, at most 256 bytes.
+
+**Receivers:**
+- **Mac:** opens the link in the default browser, or puts it on the clipboard (a setting).
+- **Phone:** shows a notification that opens the link when tapped. Android doesn't allow opening pages from the background.
 
 ### Tap to Send (`tap.v1`)
 Touch the phone to the MacBook's notch to send what's on its screen. Adapted from TapDrop's light key (MIT, github.com/0x1p0/TapDrop): the Mac's ambient light sensor must see the phone's own screen turn white and then black, on cue.

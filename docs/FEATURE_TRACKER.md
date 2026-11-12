@@ -17,13 +17,13 @@ Last updated: 2026-11-12.
 | Persistent cryptographic identity | TESTED | IMPLEMENTED | Keychain / Keystore |
 | Trusted devices list | TESTED | IMPLEMENTED | |
 | Multiple device support | TESTED | n/a | two-phone tests |
-| Device renaming | NOT_STARTED | NOT_STARTED | |
+| Device renaming | TESTED | n/a | name kept on the Mac only (Devices → Rename…); AppModelTests.rename |
 | Device removal (forget) | TESTED | IMPLEMENTED | |
 | Automatic reconnection | TESTED | TESTED | ReconnectPolicy tests |
 | Connection history (persisted) | NOT_STARTED | NOT_STARTED | in-memory activity log only |
 | Network switching recovery | IMPLEMENTED | IMPLEMENTED | network callback, wake handling |
 | Connection diagnostics | IN_PROGRESS | IN_PROGRESS | troubleshooting cards; no diagnostics screen |
-| Connection quality (latency) | NOT_STARTED | NOT_STARTED | |
+| Connection quality (latency) | TESTED | n/a | ping round-trip shown as Excellent / Good / Slow; FriendlyTests, AppModelTests |
 | Disconnect controls | IMPLEMENTED | IMPLEMENTED | forget / pause |
 
 ## 02 Share
@@ -34,10 +34,10 @@ Last updated: 2026-11-12.
 | Photos, videos, documents, PDFs, ZIP | TESTED | IMPLEMENTED | type-agnostic byte transfer |
 | Drag-and-drop | IMPLEMENTED | n/a | |
 | Android Share Sheet | n/a | IMPLEMENTED | |
-| Share text / URLs | NOT_STARTED | IN_PROGRESS | shared text currently goes to the clipboard |
+| Share text / URLs | IMPLEMENTED | IMPLEMENTED | `link.v1`: web links shared to M’AND open on the Mac; Mac → phone via notification; other text → clipboard. Vectors + LinkRulesTest; not run on a phone |
 | Transfer queue | TESTED | IMPLEMENTED | |
 | Progress and speed | IMPLEMENTED | IMPLEMENTED | |
-| Remaining time | NOT_STARTED | NOT_STARTED | |
+| Remaining time | TESTED | TESTED | `Friendly.secondsRemaining/timeLeft` (same wording both apps) |
 | Pause / resume | IN_PROGRESS | IN_PROGRESS | resume after interruption only |
 | Retry / cancel | IMPLEMENTED | IMPLEMENTED | |
 | Transfer history (persisted) | IMPLEMENTED | NOT_STARTED | Mac JSON, last 100 |
@@ -72,10 +72,10 @@ Last updated: 2026-11-12.
 | Feature | Mac | Android | Evidence / notes |
 |---|---|---|---|
 | Connected devices, names | TESTED | IMPLEMENTED | AppModelTests |
-| Manufacturer / model / OS | NOT_STARTED | NOT_STARTED | |
+| Manufacturer / model / OS | IMPLEMENTED | IMPLEMENTED | `device.info`; shown on Mac Home; not run on a phone |
 | Battery / charging | TESTED | IMPLEMENTED | device: user |
-| Connection quality | NOT_STARTED | NOT_STARTED | |
-| Storage | NOT_STARTED | NOT_STARTED | |
+| Connection quality | TESTED | n/a | see Connection quality (latency) |
+| Storage | IMPLEMENTED | IMPLEMENTED | `device.info` free/total storage; not run on a phone |
 | Last seen | IMPLEMENTED | n/a | |
 | Recent activity / transfer activity | IN_PROGRESS | NOT_STARTED | |
 
@@ -92,6 +92,13 @@ Last updated: 2026-11-12.
 | Control via scrcpy (opt-in) | IMPLEMENTED | n/a | |
 | Tap / scroll / keyboard / navigation via AccessibilityService | NOT_STARTED | NOT_STARTED | |
 | Instant disconnect | NOT_STARTED | NOT_STARTED | |
+
+## 07b Find my phone and accessibility (added 2026-11-12, v0.5.0)
+| Feature | Mac | Android | Evidence / notes |
+|---|---|---|---|
+| Find my phone (`find.v1`): alarm-volume sound + vibration, Stop on Mac or phone, auto-stop after 60 s | IMPLEMENTED | IMPLEMENTED | vectors + round-trips; AppModelTests.phoneDetails; sound not yet heard on a real phone |
+| Usability pass (Mac): big labelled action tiles, plain-language status, on/off switches on Home, link sheet, rename | IMPLEMENTED | n/a | builds; VoiceOver labels/hints on every tile; announcements for status lines |
+| Accessibility pass (Android, WCAG 2.2 AA audit) | n/a | IMPLEMENTED | rows are single switch/checkbox controls (TalkBack), AA contrast mint #0F7A55, scrollable onboarding at 200 % font, wrapping button rows, live-region status, labelled text fields, plain wording, "Open settings" on refused permissions, wrong-QR message |
 
 ## 08 Tap to Send (from TapDrop, github.com/0x1p0/TapDrop, MIT — added 2026-11-12)
 | Feature | Mac | Android | Evidence / notes |

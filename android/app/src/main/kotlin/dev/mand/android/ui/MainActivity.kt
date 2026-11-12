@@ -46,6 +46,9 @@ class MainActivity : ComponentActivity() {
         pendingSmsResult = null
     }
     private var phoneCode by mutableStateOf<String?>(null)
+    /** Set when pairing was asked for before Android's "find devices" permission; pairing continues once it's allowed. */
+    private var pairAfterPermission = false
+    private var scanProblem by mutableStateOf<String?>(null)
     private var pendingCallResult: ((Boolean) -> Unit)? = null
 
     private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
@@ -55,6 +58,10 @@ class MainActivity : ComponentActivity() {
     private val localNetworkPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) {
             client.retryNow()
+            if (pairAfterPermission) {
+                pairAfterPermission = false
+                launchScanner()
+            }
         } else if (!shouldShowRequestPermissionRationale(LocalNetworkAccess.PERMISSION)) {
             openAppSettings() // the user chose "Don't ask again"; the only way back is Settings
         }
@@ -73,7 +80,11 @@ class MainActivity : ComponentActivity() {
 
     private val scanner = registerForActivityResult(ScanContract()) { result ->
         result.contents?.let { text ->
-            if (client.pair(text)) BridgeService.start(this)
+            if (client.pair(text)) {
+                BridgeService.start(this)
+            } else {
+                scanProblem = "That isn’t an M’AND code. On your Mac, open M’AND and click “Pair a Phone”, then scan the code shown there."
+            }
         }
     }
 
@@ -92,7 +103,11 @@ class MainActivity : ComponentActivity() {
                 if (!prefs.onboardingDone && state is LinkState.NotPaired) {
                     OnboardingScreen(
                         needsLocalNetwork = LocalNetworkAccess.isRequired && !LocalNetworkAccess.isGranted(this),
-                        requestLocalNetwork = ::requestLocalNetwork,
+                        requestLocalNetwork = {
+                            app.settings.setOnboardingDone()
+                            pairAfterPermission = true
+                            requestLocalNetwork()
+                        },
                         onFinish = { pairNow ->
                             app.settings.setOnboardingDone()
                             if (pairNow) launchScanner()
@@ -124,6 +139,7 @@ class MainActivity : ComponentActivity() {
                                     openAccessibility = {
                                         startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                                     },
+                                    openAppSettings = ::openAppSettings,
                                     requestSms = { onResult ->
                                         if (checkSelfPermission(Manifest.permission.RECEIVE_SMS) == PackageManager.PERMISSION_GRANTED) {
                                             onResult(true)
@@ -135,6 +151,23 @@ class MainActivity : ComponentActivity() {
                                 ),
                                 tapEnabled = tapEnabled,
                             )
+                        },
+                    )
+                }
+                scanProblem?.let { problem ->
+                    androidx.compose.material3.AlertDialog(
+                        onDismissRequest = { scanProblem = null },
+                        title = { androidx.compose.material3.Text("Couldn’t pair") },
+                        text = { androidx.compose.material3.Text(problem) },
+                        confirmButton = {
+                            androidx.compose.material3.TextButton(onClick = { scanProblem = null; launchScanner() }) {
+                                androidx.compose.material3.Text("Scan again")
+                            }
+                        },
+                        dismissButton = {
+                            androidx.compose.material3.TextButton(onClick = { scanProblem = null }) {
+                                androidx.compose.material3.Text("Cancel")
+                            }
                         },
                     )
                 }
@@ -168,6 +201,7 @@ class MainActivity : ComponentActivity() {
 
     private fun launchScanner() {
         if (!LocalNetworkAccess.isGranted(this)) {
+            pairAfterPermission = true
             requestLocalNetwork()
             return
         }

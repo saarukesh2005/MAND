@@ -54,7 +54,7 @@ class StatusAndOnboardingTest {
     fun needsPermission_asksForNearbyDevices() {
         show(LinkState.NeedsPermission("Studio Mac"))
         compose.onNodeWithText("One permission needed").assertIsDisplayed()
-        compose.onNodeWithText("Allow Nearby devices").performClick()
+        compose.onNodeWithText("Allow finding my Mac").performClick()
         assertTrue("localNetwork" in calls)
     }
 

@@ -8,7 +8,9 @@ public enum Feature {
     public static let notifications = "notifications.v1"
     public static let calls = "calls.v1"
     public static let tap = "tap.v1"
-    public static let all: [String] = [files, clipboard, device, notifications, calls, tap]
+    public static let find = "find.v1"
+    public static let link = "link.v1"
+    public static let all: [String] = [files, clipboard, device, notifications, calls, tap, find, link]
 }
 
 /// The `hello` body (protocol §3).
@@ -66,6 +68,39 @@ public struct PhoneNotification: Equatable, Sendable, Identifiable {
     }
 }
 
+/// `device.info` body (protocol §3a): what the phone is, and its free storage.
+public struct DeviceInfo: Equatable, Sendable {
+    public let model: String
+    public let os: String
+    public let storageFree: Int64
+    public let storageTotal: Int64
+
+    public init(model: String, os: String, storageFree: Int64, storageTotal: Int64) {
+        self.model = model
+        self.os = os
+        self.storageFree = storageFree
+        self.storageTotal = storageTotal
+    }
+}
+
+/// Rules for `link.open` URLs: only web links, so a paired device can never open apps, files or scripts.
+public enum LinkRules {
+    public static let maxURLBytes = 2_048
+    public static let maxTitleBytes = 256
+
+    public static func isValid(_ url: String) -> Bool {
+        guard !url.isEmpty, url.utf8.count <= maxURLBytes,
+              !url.unicodeScalars.contains(where: { $0.value <= 0x20 || $0.value == 0x7f }) else { return false }
+        let lower = url.lowercased()
+        let rest: Substring
+        if lower.hasPrefix("https://") { rest = lower.dropFirst(8) }
+        else if lower.hasPrefix("http://") { rest = lower.dropFirst(7) }
+        else { return false }
+        guard let host = rest.split(separator: "/", maxSplits: 1, omittingEmptySubsequences: false).first else { return false }
+        return !host.isEmpty && !host.hasPrefix("@")
+    }
+}
+
 /// Every v1 message. Unknown types decode to `.unknown` and must be ignored.
 public enum Message: Equatable, Sendable {
     case hello(Hello)
@@ -98,6 +133,11 @@ public enum Message: Equatable, Sendable {
     case tapLight(round: Int64, on: Bool)
     case tapSeen(round: Int64)
     case tapResult(round: Int64, ok: Bool, why: String?)
+    case deviceInfo(DeviceInfo)
+    case findRing
+    case findStop
+    case findState(ringing: Bool)
+    case linkOpen(url: String, title: String?)
     case unknown(type: String)
 
     public enum CallState: String, Sendable { case ringing, active, idle }
@@ -108,6 +148,7 @@ public enum Message: Equatable, Sendable {
     public static let maxClipboardBytes = 262_144
     public static let maxFileChunkBytes = 196_608
     public static let maxFileSize: Int64 = 1 << 40
+    public static let maxStorageBytes: Int64 = 1 << 50
 
     public var type: String {
         switch self {
@@ -141,6 +182,11 @@ public enum Message: Equatable, Sendable {
         case .tapLight: "tap.light"
         case .tapSeen: "tap.seen"
         case .tapResult: "tap.result"
+        case .deviceInfo: "device.info"
+        case .findRing: "find.ring"
+        case .findStop: "find.stop"
+        case .findState: "find.state"
+        case .linkOpen: "link.open"
         case .unknown(let type): type
         }
     }
@@ -151,7 +197,9 @@ public enum Message: Equatable, Sendable {
         case .fileOffer, .fileAccept, .fileReject, .fileChunk, .fileAck, .fileDone, .fileResult, .fileCancel:
             Feature.files
         case .clipboardText: Feature.clipboard
-        case .deviceStatus: Feature.device
+        case .deviceStatus, .deviceInfo: Feature.device
+        case .findRing, .findStop, .findState: Feature.find
+        case .linkOpen: Feature.link
         case .notificationPosted, .notificationRemoved, .notificationDismiss: Feature.notifications
         case .callState, .callAction: Feature.calls
         case .tapKnock, .tapGrab, .tapDecline, .tapLight, .tapSeen, .tapResult: Feature.tap

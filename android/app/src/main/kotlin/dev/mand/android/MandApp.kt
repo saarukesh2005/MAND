@@ -24,6 +24,10 @@ class MandApp : Application() {
         private set
     lateinit var calls: CallBridge
         private set
+    lateinit var find: dev.mand.android.find.FindPhone
+        private set
+    lateinit var links: dev.mand.android.link.LinkBridge
+        private set
 
     override fun onCreate() {
         super.onCreate()
@@ -33,8 +37,11 @@ class MandApp : Application() {
         clipboard = ClipboardBridge(this, client, settings)
         notifications = NotificationBridge(this)
         calls = CallBridge(this, client, settings)
+        find = dev.mand.android.find.FindPhone(this, client)
+        links = dev.mand.android.link.LinkBridge(this, client)
         val battery = BatteryReporter(this, client)
-        listOf(files, clipboard, notifications, battery, calls, dev.mand.android.tap.TapBridge(this)).forEach(client::register)
+        listOf(files, clipboard, notifications, battery, calls, dev.mand.android.tap.TapBridge(this), find, links)
+            .forEach(client::register)
         battery.start()
         // Start watching call state once saved settings are loaded (only if the user turned it on).
         kotlinx.coroutines.MainScope().launch {

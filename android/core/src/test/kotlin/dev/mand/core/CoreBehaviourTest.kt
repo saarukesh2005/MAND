@@ -48,6 +48,9 @@ class CoreBehaviourTest {
             Message.CallActionRequest(Message.CallAction.DECLINE),
             Message.TapKnock, Message.TapGrab(3, true), Message.TapDecline(3, "paused-app"), Message.TapLight(3, false),
             Message.TapSeen(3), Message.TapResult(3, true, null), Message.TapResult(4, false, "stayed-lit"),
+            Message.DeviceInfo("Pixel 7a", "Android 16", 5, 10), Message.FindRing, Message.FindStop,
+            Message.FindState(false), Message.LinkOpen("https://example.com", "Example"),
+            Message.LinkOpen("http://a.b/c", null),
         )
         for (message in messages) {
             val envelope = Envelope(message, id = "id-1", timestampMillis = 42)

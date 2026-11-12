@@ -1,3 +1,4 @@
+import AppKit
 import MandMacKit
 import SwiftUI
 
@@ -108,6 +109,7 @@ struct FeatureTile: View {
             }
             Spacer(minLength: 0)
         }
+        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
         .padding(Theme.Space.m)
         .background(Theme.surfaceRaised, in: RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
         .accessibilityElement(children: .combine)
@@ -135,5 +137,88 @@ struct Tip: View {
             Text(text).fixedSize(horizontal: false, vertical: true)
         }
         .font(.callout)
+    }
+}
+
+/// A large, clearly labelled action: icon, title and one line saying what it does (or why it can't yet).
+struct ActionTile: View {
+    let symbol: String
+    let title: String
+    let hint: String
+    var isEnabled = true
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: Theme.Space.s) {
+                Image(systemName: symbol)
+                    .font(.title2)
+                    .foregroundStyle(isEnabled ? Theme.accent : .secondary)
+                    .accessibilityHidden(true)
+                Text(title).font(.body.weight(.semibold)).foregroundStyle(.primary)
+                Text(hint).font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .multilineTextAlignment(.leading)
+            }
+            .frame(maxWidth: .infinity, minHeight: 92, alignment: .topLeading)
+            .padding(Theme.Space.m)
+            .background(Theme.surfaceRaised, in: RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous).strokeBorder(Theme.hairline))
+            .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .opacity(isEnabled ? 1 : 0.6)
+        .help(hint)
+        .accessibilityLabel(title)
+        .accessibilityHint(hint)
+    }
+}
+
+/// A one-line status message with an icon, announced to VoiceOver when it changes.
+struct NoticeLine: View {
+    let text: String
+    var symbol = "info.circle"
+
+    var body: some View {
+        Label(text, systemImage: symbol)
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .onAppear { announce() }
+            .onChange(of: text) { announce() }
+    }
+
+    private func announce() {
+        NSAccessibility.post(element: NSApp as Any, notification: .announcementRequested,
+                             userInfo: [.announcement: text, .priority: NSAccessibilityPriorityLevel.medium.rawValue])
+    }
+}
+
+/// A feature that starts off, with its switch right on the tile (no trip to Settings needed).
+struct FeatureToggleTile: View {
+    let symbol: String
+    let title: String
+    let detail: String
+    @Binding var isOn: Bool
+
+    var body: some View {
+        Toggle(isOn: $isOn) {
+            HStack(spacing: Theme.Space.m) {
+                Image(systemName: symbol).font(.title3).frame(width: 28)
+                    .foregroundStyle(isOn ? Theme.accent : .secondary)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).font(.body.weight(.medium))
+                    Text(isOn ? "On · \(detail)" : "Off · \(detail)").font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .toggleStyle(.switch)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(Theme.Space.m)
+        .background(Theme.surfaceRaised, in: RoundedRectangle(cornerRadius: Theme.Radius.medium, style: .continuous))
+        .accessibilityHint(detail)
     }
 }

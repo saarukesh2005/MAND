@@ -418,8 +418,11 @@ class BridgeClient private constructor(private val context: Context) {
                     is Message.FileOffer, is Message.FileAccept, is Message.FileReject, is Message.FileChunk,
                     is Message.FileAck, is Message.FileDone, is Message.FileResult, is Message.FileCancel,
                     is Message.ClipboardText, is Message.NotificationDismiss, is Message.CallActionRequest,
-                    is Message.TapGrab, is Message.TapSeen, is Message.TapResult -> {
+                    is Message.TapGrab, is Message.TapSeen, is Message.TapResult,
+                    is Message.FindRing, is Message.FindStop, is Message.LinkOpen -> {
                         val feature = when (message) {
+                            is Message.FindRing, is Message.FindStop -> Feature.FIND
+                            is Message.LinkOpen -> Feature.LINK
                             is Message.ClipboardText -> Feature.CLIPBOARD
                             is Message.NotificationDismiss -> Feature.NOTIFICATIONS
                             is Message.CallActionRequest -> Feature.CALLS
@@ -518,7 +521,7 @@ class BridgeClient private constructor(private val context: Context) {
 
     companion object {
         private const val TAG = "MandBridge"
-        const val APP_VERSION = "0.4.0"
+        const val APP_VERSION = "0.5.0"
         private const val HANDSHAKE_TIMEOUT_MS = 10_000L
         private const val APPROVAL_TIMEOUT_MS = 5L * 60 * 1000
         private const val MAX_CHAT_LINES = 100

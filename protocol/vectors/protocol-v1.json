@@ -542,6 +542,108 @@
       "json": "{\"v\":1,\"type\":\"tap.decline\",\"id\":\"t82\",\"ts\":1,\"body\":{\"round\":7}}",
       "expect": "error",
       "code": "malformed"
+    },
+    {
+      "name": "device.info",
+      "json": "{\"v\":1,\"type\":\"device.info\",\"id\":\"n0\",\"ts\":1,\"body\":{\"model\":\"Pixel 7a\",\"os\":\"Android 16\",\"storageFree\":52000000000,\"storageTotal\":128000000000}}",
+      "expect": "ok",
+      "type": "device.info"
+    },
+    {
+      "name": "device.info negative storage",
+      "json": "{\"v\":1,\"type\":\"device.info\",\"id\":\"n1\",\"ts\":1,\"body\":{\"model\":\"Pixel 7a\",\"os\":\"Android 16\",\"storageFree\":-1,\"storageTotal\":1}}",
+      "expect": "error",
+      "code": "malformed"
+    },
+    {
+      "name": "device.info missing model",
+      "json": "{\"v\":1,\"type\":\"device.info\",\"id\":\"n2\",\"ts\":1,\"body\":{\"os\":\"Android 16\",\"storageFree\":1,\"storageTotal\":1}}",
+      "expect": "error",
+      "code": "malformed"
+    },
+    {
+      "name": "find.ring",
+      "json": "{\"v\":1,\"type\":\"find.ring\",\"id\":\"n3\",\"ts\":1,\"body\":{}}",
+      "expect": "ok",
+      "type": "find.ring"
+    },
+    {
+      "name": "find.stop",
+      "json": "{\"v\":1,\"type\":\"find.stop\",\"id\":\"n4\",\"ts\":1,\"body\":{}}",
+      "expect": "ok",
+      "type": "find.stop"
+    },
+    {
+      "name": "find.state",
+      "json": "{\"v\":1,\"type\":\"find.state\",\"id\":\"n5\",\"ts\":1,\"body\":{\"ringing\":true}}",
+      "expect": "ok",
+      "type": "find.state"
+    },
+    {
+      "name": "find.state ringing not boolean",
+      "json": "{\"v\":1,\"type\":\"find.state\",\"id\":\"n6\",\"ts\":1,\"body\":{\"ringing\":\"yes\"}}",
+      "expect": "error",
+      "code": "malformed"
+    },
+    {
+      "name": "link.open https with title",
+      "json": "{\"v\":1,\"type\":\"link.open\",\"id\":\"n7\",\"ts\":1,\"body\":{\"url\":\"https://example.com/a?b=c#d\",\"title\":\"Example\"}}",
+      "expect": "ok",
+      "type": "link.open"
+    },
+    {
+      "name": "link.open http",
+      "json": "{\"v\":1,\"type\":\"link.open\",\"id\":\"n8\",\"ts\":1,\"body\":{\"url\":\"http://example.com\"}}",
+      "expect": "ok",
+      "type": "link.open"
+    },
+    {
+      "name": "link.open uppercase scheme",
+      "json": "{\"v\":1,\"type\":\"link.open\",\"id\":\"n9\",\"ts\":1,\"body\":{\"url\":\"HTTPS://Example.com/\"}}",
+      "expect": "ok",
+      "type": "link.open"
+    },
+    {
+      "name": "link.open file scheme rejected",
+      "json": "{\"v\":1,\"type\":\"link.open\",\"id\":\"n10\",\"ts\":1,\"body\":{\"url\":\"file:///etc/passwd\"}}",
+      "expect": "error",
+      "code": "malformed"
+    },
+    {
+      "name": "link.open javascript rejected",
+      "json": "{\"v\":1,\"type\":\"link.open\",\"id\":\"n11\",\"ts\":1,\"body\":{\"url\":\"javascript:alert(1)\"}}",
+      "expect": "error",
+      "code": "malformed"
+    },
+    {
+      "name": "link.open custom app scheme rejected",
+      "json": "{\"v\":1,\"type\":\"link.open\",\"id\":\"n12\",\"ts\":1,\"body\":{\"url\":\"intent://scan/#Intent;scheme=zxing;end\"}}",
+      "expect": "error",
+      "code": "malformed"
+    },
+    {
+      "name": "link.open no host rejected",
+      "json": "{\"v\":1,\"type\":\"link.open\",\"id\":\"n13\",\"ts\":1,\"body\":{\"url\":\"https:///path\"}}",
+      "expect": "error",
+      "code": "malformed"
+    },
+    {
+      "name": "link.open space rejected",
+      "json": "{\"v\":1,\"type\":\"link.open\",\"id\":\"n14\",\"ts\":1,\"body\":{\"url\":\"https://exa mple.com\"}}",
+      "expect": "error",
+      "code": "malformed"
+    },
+    {
+      "name": "link.open control character rejected",
+      "json": "{\"v\":1,\"type\":\"link.open\",\"id\":\"n15\",\"ts\":1,\"body\":{\"url\":\"https://example.com/\\u0000\"}}",
+      "expect": "error",
+      "code": "malformed"
+    },
+    {
+      "name": "link.open too long",
+      "json": "{\"v\":1,\"type\":\"link.open\",\"id\":\"n16\",\"ts\":1,\"body\":{\"url\":\"https://example.com/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}}",
+      "expect": "error",
+      "code": "malformed"
     }
   ],
   "versionNegotiation": [

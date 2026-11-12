@@ -5,16 +5,24 @@ import android.content.pm.PackageManager
 import android.text.format.Formatter
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -30,6 +38,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -37,18 +49,20 @@ import dev.mand.android.MandApp
 import dev.mand.android.files.TransferItem
 import dev.mand.android.files.TransferState
 import dev.mand.core.Feature
+import dev.mand.core.Friendly
 
-/** Files, clipboard and notification sections of the home screen. Shown once a Mac is paired. */
+/** Feature sections of the home screen, simplest first. Shown once a Mac is paired. */
 @Composable
 fun FeatureCards(app: MandApp, connected: Boolean, notificationAccess: Boolean, actions: FeatureActions, tapEnabled: Boolean = false) {
-    TapCard(app, connected, tapEnabled, actions)
     FilesCard(app, connected, actions)
+    FindAndLinksCard()
     ClipboardCard(app, connected)
     NotificationsCard(app, notificationAccess, actions)
     CallsCard(app, actions)
+    TapCard(app, connected, tapEnabled, actions)
     Text(
-        "Battery level is shared with your Mac automatically while connected.",
-        style = MaterialTheme.typography.bodySmall,
+        "Your battery level, phone model and free storage are shown on your Mac while connected.",
+        style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
 }
@@ -61,95 +75,9 @@ class FeatureActions(
     val openAccessibility: () -> Unit = {},
     /** Asks for SMS permission (codes to the Mac); the callback says whether it was granted. */
     val requestSms: (onResult: (Boolean) -> Unit) -> Unit = {},
+    /** Opens this app's page in Android Settings (to allow a permission that was refused). */
+    val openAppSettings: () -> Unit = {},
 )
-
-@Composable
-private fun TapCard(app: MandApp, connected: Boolean, tapEnabled: Boolean, actions: FeatureActions) {
-    val prefs by app.settings.prefs.collectAsStateWithLifecycle()
-    var choosing by rememberSaveable { mutableStateOf(false) }
-    var smsDenied by rememberSaveable { mutableStateOf(false) }
-    SectionCard(
-        title = "Tap to Send",
-        subtitle = "Touch the top of your phone to your MacBook’s notch to send what’s on screen. Your Mac checks the " +
-            "screen’s light, so it only works when the phone is really on the notch.",
-    ) {
-        if (tapEnabled) {
-            Text(
-                if (connected && app.client.macSupports(dev.mand.core.Feature.TAP)) "Ready. Turn on Tap to Send on your Mac too (Settings)."
-                else "On. Waiting for your Mac to connect.",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-        } else {
-            Text(
-                "Android needs you to switch on “M’AND Tap to Send” in Accessibility settings. If it’s greyed out, " +
-                    "open App info → ⋮ → “Allow restricted settings” first.",
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
-        OutlinedButton(onClick = actions.openAccessibility) { Text(if (tapEnabled) "Accessibility settings" else "Turn on Tap to Send") }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Paused in ${prefs.tapPausedApps.size} banking/UPI app(s)", modifier = Modifier.weight(1f))
-            TextButton(onClick = { choosing = true }) { Text("Edit") }
-        }
-        ToggleRow("Send SMS one-time codes to my Mac’s clipboard", prefs.otpToMac) { on ->
-            if (!on) {
-                app.settings.setOtpToMac(false)
-            } else {
-                actions.requestSms { granted ->
-                    smsDenied = !granted
-                    if (granted) app.settings.setOtpToMac(true)
-                }
-            }
-        }
-        if (smsDenied) {
-            Text("M’AND needs the SMS permission for this. You can allow it in Settings → Apps → M’AND → Permissions.",
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-        } else if (prefs.otpToMac) {
-            Text("Codes are copied on your Mac only if Clipboard sharing is on there.",
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
-    if (choosing) {
-        PackagePicker(
-            title = "Pause Tap to Send in",
-            selected = prefs.tapPausedApps,
-            onToggle = { pkg, on -> app.settings.setTapPaused(pkg, on) },
-            onDismiss = { choosing = false },
-        )
-    }
-}
-
-@Composable
-private fun CallsCard(app: MandApp, actions: FeatureActions) {
-    val prefs by app.settings.prefs.collectAsStateWithLifecycle()
-    val result by app.calls.lastResult.collectAsStateWithLifecycle()
-    var denied by rememberSaveable { mutableStateOf(false) }
-    SectionCard(
-        title = "Calls on Mac",
-        subtitle = "See who’s calling on your Mac and answer or decline from there. The call itself (audio) stays on your phone.",
-    ) {
-        ToggleRow("Answer and decline calls from my Mac", prefs.callsEnabled) { on ->
-            if (!on) {
-                app.settings.setCalls(false)
-                app.calls.refresh()
-            } else {
-                actions.requestCallPermissions { granted ->
-                    denied = !granted
-                    if (granted) app.settings.setCalls(true)
-                }
-            }
-        }
-        if (denied) {
-            Text("M’AND needs the Phone permission for this. You can allow it in Settings → Apps → M’AND → Permissions.",
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-        }
-        if (prefs.callsEnabled) {
-            Text("Tip: with Notification access on, your Mac also shows the caller’s name.",
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        result?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
-    }
-}
 
 @Composable
 private fun FilesCard(app: MandApp, connected: Boolean, actions: FeatureActions) {
@@ -157,20 +85,27 @@ private fun FilesCard(app: MandApp, connected: Boolean, actions: FeatureActions)
     val canSend = connected && app.client.macSupports(Feature.FILES)
     SectionCard(
         title = "Files",
-        subtitle = "Files from your Mac are saved in Downloads/M’AND. You can also use Share → “Send to Mac” in any app.",
+        subtitle = "Files from your Mac are saved in Downloads → M’AND. In any app you can also tap Share → M’AND.",
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        ButtonRow {
             OutlinedButton(onClick = actions.pickFiles) { Text("Send files to Mac") }
             if (items.any { it.isFinished }) TextButton(onClick = app.files::clearFinished) { Text("Clear finished") }
         }
         if (!canSend) {
-            Text(
-                if (connected) "Your Mac’s M’AND needs updating to receive files." else "Files you pick now are sent when your Mac connects.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Hint(if (connected) "Update M’AND on your Mac to send files." else "Files you pick now are sent when your Mac connects.")
         }
         items.takeLast(6).reversed().forEach { TransferRow(it, onCancel = { app.files.cancel(it.id) }) }
+    }
+}
+
+@Composable
+private fun FindAndLinksCard() {
+    SectionCard(
+        title = "Find my phone and links",
+        subtitle = "Lost your phone nearby? On your Mac, click “Find My Phone” and it rings loudly, even on silent.",
+    ) {
+        Hint("To open a web page on your Mac: in your browser tap Share → M’AND.")
+        Hint("Links sent from your Mac appear as a notification here. Tap it to open the page.")
     }
 }
 
@@ -185,23 +120,29 @@ private fun TransferRow(item: TransferItem, onCancel: () -> Unit) {
         TransferState.Active -> {
             val done = Formatter.formatShortFileSize(context, item.transferred)
             val speed = if (item.bytesPerSecond > 0) " · ${Formatter.formatShortFileSize(context, item.bytesPerSecond.toLong())}/s" else ""
-            "$done of $size$speed"
+            val left = Friendly.secondsRemaining(item.size, item.transferred, item.bytesPerSecond)
+                ?.let { " · ${Friendly.timeLeft(it)}" }.orEmpty()
+            "$done of $size$speed$left"
         }
-        TransferState.Interrupted -> "Connection lost — will continue automatically"
+        TransferState.Interrupted -> "Connection lost. It will continue automatically."
         TransferState.Done -> if (item.incoming) "Received · $size" else "Sent · $size"
-        TransferState.AlreadyThere -> "Already there — not copied again"
+        TransferState.AlreadyThere -> "Already there, so it wasn’t copied again"
         is TransferState.Failed -> state.reason
         TransferState.Cancelled -> "Cancelled"
     }
-    Column(Modifier.padding(top = 10.dp)) {
+    Column(Modifier.padding(top = 10.dp).semantics(mergeDescendants = true) { stateDescription = detail }) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                (if (item.incoming) "↓ " else "↑ ") + item.name,
-                maxLines = 1,
+                (if (item.incoming) "Receiving: " else "Sending: ") + item.name,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
-            if (!item.isFinished) TextButton(onClick = onCancel) { Text("Cancel") }
+            if (!item.isFinished) {
+                TextButton(onClick = onCancel, modifier = Modifier.semantics { contentDescription = "Cancel ${item.name}" }) {
+                    Text("Cancel")
+                }
+            }
         }
         if (!item.isFinished && item.size > 0) {
             LinearProgressIndicator(
@@ -209,7 +150,7 @@ private fun TransferRow(item: TransferItem, onCancel: () -> Unit) {
                 modifier = Modifier.fillMaxWidth(),
             )
         }
-        Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(detail, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -219,14 +160,17 @@ private fun ClipboardCard(app: MandApp, connected: Boolean) {
     val notice by app.clipboard.notice.collectAsStateWithLifecycle()
     SectionCard(
         title = "Clipboard",
-        subtitle = "Off by default. Text you copy is sent only when you tap Send (or use the “Clipboard to Mac” quick-settings tile).",
+        subtitle = "Off until you turn it on. Text you copy is only sent when you tap “Send copied text to Mac”.",
     ) {
-        ToggleRow("Share clipboard text with my Mac", prefs.clipboardEnabled, app.settings::setClipboard)
-        OutlinedButton(
-            onClick = { app.clipboard.sendCurrentClip() },
-            enabled = prefs.clipboardEnabled && connected,
-        ) { Text("Send copied text to Mac") }
-        notice?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        ToggleRow("Share copied text with my Mac", prefs.clipboardEnabled, app.settings::setClipboard)
+        OutlinedButton(onClick = { app.clipboard.sendCurrentClip() }, enabled = prefs.clipboardEnabled && connected) {
+            Text("Send copied text to Mac")
+        }
+        when {
+            !prefs.clipboardEnabled -> Hint("Turn on the switch above first.")
+            !connected -> Hint("Connect to your Mac first.")
+        }
+        notice?.let { Hint(it) }
     }
 }
 
@@ -236,33 +180,103 @@ private fun NotificationsCard(app: MandApp, notificationAccess: Boolean, actions
     var choosing by rememberSaveable { mutableStateOf(false) }
     SectionCard(
         title = "Notifications on Mac",
-        subtitle = "Only apps you choose are shared. Android hides one-time codes from M’AND for your safety.",
+        subtitle = "Only the apps you choose are shared. Android keeps one-time codes hidden for your safety.",
     ) {
         ToggleRow("Show phone notifications on my Mac", prefs.notificationsEnabled, app.settings::setNotifications)
         if (prefs.notificationsEnabled) {
             if (!notificationAccess) {
-                Text(
-                    "Android needs you to allow “Notification access” for M’AND. If Android says the setting is " +
-                        "restricted, open App info → ⋮ → “Allow restricted settings” first.",
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                OutlinedButton(onClick = actions.openNotificationAccess) { Text("Open Notification access") }
+                Hint("To show notifications on your Mac, Android needs your OK. Tap the button, find M’AND in the list and switch it on.")
+                OutlinedButton(onClick = actions.openNotificationAccess) { Text("Give notification access") }
+                Hint("If Android says the setting is restricted: long-press the M’AND icon → App info → ⋮ (top right) → Allow restricted settings, then try again.")
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            ButtonRow {
                 Text(
-                    if (prefs.allowedApps.isEmpty()) "No apps chosen yet" else "${prefs.allowedApps.size} app(s) shared",
-                    modifier = Modifier.weight(1f),
+                    if (prefs.allowedApps.isEmpty()) "No apps chosen yet" else "Sharing from ${Friendly.count(prefs.allowedApps.size, "app")}",
+                    modifier = Modifier.heightIn(min = 48.dp).wrapContentHeight(),
                 )
                 TextButton(onClick = { choosing = true }) { Text("Choose apps") }
             }
         }
     }
-    if (choosing) AppPicker(app, prefs.allowedApps, onDismiss = { choosing = false })
+    if (choosing) {
+        PackagePicker("Share notifications from", prefs.allowedApps, { pkg, on -> app.settings.setAppAllowed(pkg, on) }) {
+            choosing = false
+        }
+    }
 }
 
 @Composable
-private fun AppPicker(app: MandApp, allowed: Set<String>, onDismiss: () -> Unit) =
-    PackagePicker("Share notifications from", allowed, { pkg, on -> app.settings.setAppAllowed(pkg, on) }, onDismiss)
+private fun CallsCard(app: MandApp, actions: FeatureActions) {
+    val prefs by app.settings.prefs.collectAsStateWithLifecycle()
+    val result by app.calls.lastResult.collectAsStateWithLifecycle()
+    var denied by rememberSaveable { mutableStateOf(false) }
+    SectionCard(
+        title = "Calls on Mac",
+        subtitle = "See who’s calling on your Mac and answer or decline from there. You still talk on your phone.",
+    ) {
+        ToggleRow("Answer and decline calls from my Mac", prefs.callsEnabled) { on ->
+            if (!on) {
+                app.settings.setCalls(false)
+                app.calls.refresh()
+            } else {
+                actions.requestCallPermissions { granted ->
+                    denied = !granted
+                    if (granted) app.settings.setCalls(true)
+                }
+            }
+        }
+        if (denied) PermissionProblem("M’AND needs the Phone permission for this.", actions.openAppSettings)
+        if (prefs.callsEnabled) Hint("Tip: with notification access on, your Mac also shows the caller’s name.")
+        result?.let { Problem(it) }
+    }
+}
+
+@Composable
+private fun TapCard(app: MandApp, connected: Boolean, tapEnabled: Boolean, actions: FeatureActions) {
+    val prefs by app.settings.prefs.collectAsStateWithLifecycle()
+    var choosing by rememberSaveable { mutableStateOf(false) }
+    var smsDenied by rememberSaveable { mutableStateOf(false) }
+    SectionCard(
+        title = "Tap to Send (experimental)",
+        subtitle = "Touch the top of your phone to your MacBook’s notch to send what’s on your screen.",
+    ) {
+        if (tapEnabled) {
+            Hint(if (connected && app.client.macSupports(Feature.TAP)) "Ready. Also turn on Tap to Send on your Mac." else "On. Waiting for your Mac to connect.")
+        } else {
+            Text("Turn it on in 3 steps:", style = MaterialTheme.typography.bodyMedium)
+            Hint("1. Tap the button below.\n2. Choose “M’AND Tap to Send”.\n3. Turn it on and tap Allow.")
+            Hint("If it’s greyed out: long-press the M’AND icon → App info → ⋮ (top right) → Allow restricted settings, then try again.")
+        }
+        OutlinedButton(onClick = actions.openAccessibility) { Text(if (tapEnabled) "Tap to Send settings" else "Turn on Tap to Send") }
+        ButtonRow {
+            Text(
+                "Stays off in ${Friendly.count(prefs.tapPausedApps.size, "banking app")}",
+                modifier = Modifier.heightIn(min = 48.dp).wrapContentHeight(),
+            )
+            TextButton(onClick = { choosing = true }) { Text("Choose apps") }
+        }
+        ToggleRow("Copy SMS one-time codes to my Mac", prefs.otpToMac) { on ->
+            if (!on) {
+                app.settings.setOtpToMac(false)
+            } else {
+                actions.requestSms { granted ->
+                    smsDenied = !granted
+                    if (granted) app.settings.setOtpToMac(true)
+                }
+            }
+        }
+        if (smsDenied) {
+            PermissionProblem("M’AND needs the SMS permission for this.", actions.openAppSettings)
+        } else if (prefs.otpToMac) {
+            Hint("Codes are copied on your Mac only if Clipboard is turned on there.")
+        }
+    }
+    if (choosing) {
+        PackagePicker("Keep Tap to Send off in", prefs.tapPausedApps, { pkg, on -> app.settings.setTapPaused(pkg, on) }) {
+            choosing = false
+        }
+    }
+}
 
 @Composable
 private fun PackagePicker(title: String, selected: Set<String>, onToggle: (String, Boolean) -> Unit, onDismiss: () -> Unit) {
@@ -282,8 +296,14 @@ private fun PackagePicker(title: String, selected: Set<String>, onToggle: (Strin
         text = {
             LazyColumn(Modifier.heightIn(max = 420.dp)) {
                 items(apps, key = { it.first }) { (pkg, label) ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(checked = pkg in selected, onCheckedChange = { onToggle(pkg, it) })
+                    // The whole row is one checkbox, so tapping the name works and TalkBack reads it as one control.
+                    Row(
+                        Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                            .toggleable(value = pkg in selected, role = Role.Checkbox) { onToggle(pkg, it) },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(checked = pkg in selected, onCheckedChange = null)
+                        Spacer(Modifier.width(12.dp))
                         Text(label)
                     }
                 }
@@ -293,13 +313,49 @@ private fun PackagePicker(title: String, selected: Set<String>, onToggle: (Strin
     )
 }
 
+/** A label and a switch that act as one control: tap anywhere on the row, and TalkBack reads the label with the state. */
 @Composable
-private fun ToggleRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+internal fun ToggleRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(value = checked, role = Role.Switch, onValueChange = onChange),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Text(label, modifier = Modifier.weight(1f))
         Spacer(Modifier.width(8.dp))
-        Switch(checked = checked, onCheckedChange = onChange)
+        Switch(checked = checked, onCheckedChange = null)
     }
+}
+
+/** Buttons that wrap onto a new line instead of squashing when the text is large. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun ButtonRow(content: @Composable () -> Unit) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.S), verticalArrangement = Arrangement.spacedBy(Space.S)) {
+        content()
+    }
+}
+
+@Composable
+internal fun Hint(text: String) {
+    Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+/** A problem, marked with an icon as well as colour. */
+@Composable
+internal fun Problem(text: String) {
+    Row(verticalAlignment = Alignment.Top) {
+        Icon(Icons.Outlined.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error,
+            modifier = Modifier.size(20.dp).padding(top = 2.dp))
+        Spacer(Modifier.width(Space.S))
+        Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+    }
+}
+
+/** A refused permission: says so, and offers the one button that fixes it. */
+@Composable
+private fun PermissionProblem(text: String, openAppSettings: () -> Unit) {
+    Problem("$text Tap “Open settings”, then Permissions, and choose Allow.")
+    OutlinedButton(onClick = openAppSettings) { Text("Open settings") }
 }
 
 @Composable

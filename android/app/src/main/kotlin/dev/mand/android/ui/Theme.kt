@@ -21,7 +21,8 @@ import androidx.compose.ui.graphics.Color
 
 // Restrained graphite + mint palette, matching the Mac app icon. Dynamic colour is off on purpose
 // so M’AND looks the same on every phone.
-private val Mint = Color(0xFF2FA878)
+// Light-theme mint is darkened so text and icons pass WCAG AA (≈5.3:1 on white); dark theme keeps the bright mint.
+private val Mint = Color(0xFF0F7A55)
 private val MintDark = Color(0xFF5CD69E)
 
 private val LightColors = lightColorScheme(
@@ -76,7 +77,7 @@ fun MandCard(title: String? = null, subtitle: String? = null, content: @Composab
                 Text(it, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                     modifier = Modifier.semantics { heading() })
             }
-            subtitle?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            subtitle?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             content()
         }
     }

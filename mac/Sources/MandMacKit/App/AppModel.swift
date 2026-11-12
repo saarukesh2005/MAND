@@ -47,12 +47,16 @@ public final class AppModel {
 
     /// A phone with a live, trusted connection.
     public struct ConnectedPhone: Identifiable, Equatable {
-        public let device: PairedDevice
+        public internal(set) var device: PairedDevice
         public var address: String?
         public var features: Set<String>
         public var status: PhoneStatus?
         public var notifications: [PhoneNotification] = []
         public var call: CallInfo?
+        public var info: DeviceInfo?
+        public var latencyMs: Int?
+        /// The phone said it's playing the find-my-phone sound.
+        public var isRinging = false
         public let connectedAt: Date
 
         public var id: String { device.fingerprint.hex }
@@ -74,6 +78,8 @@ public final class AppModel {
     public private(set) var serverStatus: ServerStatus = .starting
     public private(set) var isAdvertising = false
     public private(set) var devices: [PairedDevice] = []
+    /// The paired list as stored (phones' own names), before this Mac's renames.
+    private(set) var storedDevices: [PairedDevice] = []
     public private(set) var phones: [ConnectedPhone] = []
     public var selectedPhoneID: String?
     public private(set) var lastDisconnect: (name: String, reason: String, date: Date)?
@@ -95,10 +101,12 @@ public final class AppModel {
     public private(set) var tapNotice: String?
     /// nil until Tap to Send has been switched on once and the sensor was checked.
     public private(set) var tapSensorAvailable: Bool?
+    /// Last link sent or received, shown in Home.
+    public internal(set) var linkNotice: String?
     public let settings: AppSettings
 
     public let macName: String
-    private var server: BridgeServer?
+    private(set) var server: BridgeServer?
     private var fileServices: [Fingerprint: FileTransferService] = [:]
     private var liveByDevice: [Fingerprint: [FileTransferService.Item]] = [:]
     private let historyStore: TransferHistoryStore
@@ -514,10 +522,13 @@ public final class AppModel {
             default: "Pairing with \(name) was declined."
             }
         case .devicesChanged(let devices):
-            self.devices = devices
+            storedDevices = devices
+            self.devices = devices.map(aliased)
             let trusted = Set(devices.map(\.fingerprint))
             phones.removeAll { !trusted.contains($0.device.fingerprint) }
-        case .phoneConnected(let device, let address, let features):
+            for device in self.devices { update(device.fingerprint) { $0.device = device } }
+        case .phoneConnected(let original, let address, let features):
+            let device = aliased(original)
             phones.removeAll { $0.device.fingerprint == device.fingerprint }
             phones.append(ConnectedPhone(device: device, address: address, features: features, connectedAt: Date()))
             selectedPhoneID = selectedPhoneID ?? device.fingerprint.hex
@@ -532,11 +543,13 @@ public final class AppModel {
             if selectedPhoneID == device.fingerprint.hex { selectedPhoneID = phones.last?.id }
             fileServices[device.fingerprint]?.connectionChanged(connected: false)
             tap?.phoneDisconnected(device.fingerprint)
-            lastDisconnect = (device.name, reason, Date())
+            lastDisconnect = (aliased(device).name, reason, Date())
         case .textReceived(let text, let device):
-            appendChat(ChatLine(direction: .fromPhone, text: text, date: Date(), deviceName: device.name))
+            appendChat(ChatLine(direction: .fromPhone, text: text, date: Date(), deviceName: aliased(device).name))
         case .featureMessage(let message, let device):
-            applyFeature(message, from: device)
+            applyFeature(message, from: aliased(device))
+        case .latency(let device, let milliseconds):
+            update(device.fingerprint) { $0.latencyMs = milliseconds }
         case .log(let text):
             log(text)
         }
@@ -562,6 +575,12 @@ public final class AppModel {
         case .notificationRemoved(let key):
             update(fingerprint) { $0.notifications.removeAll { $0.key == key } }
             notifier.remove(key: key)
+        case .deviceInfo(let info):
+            update(fingerprint) { $0.info = info }
+        case .findState(let ringing):
+            update(fingerprint) { $0.isRinging = ringing }
+        case .linkOpen(let url, let title):
+            receiveLink(url, title: title, from: device)
         case .callState(let state, let caller):
             update(fingerprint) { $0.call = state == .idle ? nil : CallInfo(state: state, caller: caller, since: Date()) }
             guard let phone = phones.first(where: { $0.device.fingerprint == fingerprint }) else { return }
@@ -578,7 +597,7 @@ public final class AppModel {
 
     private static func callAlertID(_ phone: ConnectedPhone) -> String { "call." + phone.id }
 
-    private func update(_ fingerprint: Fingerprint, _ change: (inout ConnectedPhone) -> Void) {
+    func update(_ fingerprint: Fingerprint, _ change: (inout ConnectedPhone) -> Void) {
         guard let index = phones.firstIndex(where: { $0.device.fingerprint == fingerprint }) else { return }
         change(&phones[index])
     }
@@ -587,7 +606,7 @@ public final class AppModel {
         chat = Array((chat + [line]).suffix(Self.maxChatLines))
     }
 
-    private func log(_ text: String) {
+    func log(_ text: String) {
         log = Array((log + [LogLine(date: Date(), text: text)]).suffix(Self.maxLogLines))
     }
 }

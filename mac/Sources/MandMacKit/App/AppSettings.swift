@@ -24,6 +24,10 @@ public final class AppSettings {
     public var quickShareEnabled: Bool { didSet { defaults.set(quickShareEnabled, forKey: Keys.quickShareEnabled) } }
     /// Tap to Send (reads the notch light sensor through a private API); off until the user turns it on.
     public var tapEnabled: Bool { didSet { defaults.set(tapEnabled, forKey: Keys.tapEnabled) } }
+    /// Links shared from the phone open in the Mac's browser straight away (on by default: sharing is deliberate).
+    public var openLinksFromPhone: Bool { didSet { defaults.set(openLinksFromPhone, forKey: Keys.openLinksFromPhone) } }
+    /// Names the user gave paired phones on this Mac, by fingerprint (hex).
+    public var deviceAliases: [String: String] { didSet { defaults.set(deviceAliases, forKey: Keys.deviceAliases) } }
 
     enum Keys {
         static let downloadFolder = "downloadFolder"
@@ -35,6 +39,8 @@ public final class AppSettings {
         static let hasCompletedOnboarding = "hasCompletedOnboarding"
         static let quickShareEnabled = "quickShareEnabled"
         static let tapEnabled = "tapEnabled"
+        static let openLinksFromPhone = "openLinksFromPhone"
+        static let deviceAliases = "deviceAliases"
     }
 
     public static var defaultDownloadFolder: URL {
@@ -54,5 +60,7 @@ public final class AppSettings {
         hasCompletedOnboarding = defaults.bool(forKey: Keys.hasCompletedOnboarding)
         quickShareEnabled = defaults.bool(forKey: Keys.quickShareEnabled)
         tapEnabled = defaults.bool(forKey: Keys.tapEnabled)
+        openLinksFromPhone = defaults.object(forKey: Keys.openLinksFromPhone) as? Bool ?? true
+        deviceAliases = defaults.dictionary(forKey: Keys.deviceAliases) as? [String: String] ?? [:]
     }
 }

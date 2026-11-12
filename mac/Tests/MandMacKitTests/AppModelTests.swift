@@ -81,4 +81,36 @@ struct AppModelTests {
         #expect(TransferHistoryStore(url: url).load().map(\.id) == ["t1"])
         try? FileManager.default.removeItem(at: url)
     }
+
+    @Test("Phone details, latency and find-my-phone state are kept per phone")
+    func phoneDetails() {
+        model.apply(.phoneConnected(phoneA, address: nil, features: Set(Feature.all)))
+        let info = DeviceInfo(model: "Pixel 7a", os: "Android 16", storageFree: 5, storageTotal: 10)
+        model.apply(.featureMessage(.deviceInfo(info), from: phoneA))
+        model.apply(.latency(phoneA, milliseconds: 23))
+        model.apply(.featureMessage(.findState(ringing: true), from: phoneA))
+        #expect(model.selected?.info == info)
+        #expect(model.selected?.latencyMs == 23)
+        #expect(model.selected?.isRinging == true)
+        model.apply(.featureMessage(.findState(ringing: false), from: phoneA))
+        #expect(model.selected?.isRinging == false)
+    }
+
+    @Test("Renaming a phone changes its name everywhere on this Mac, and can be undone")
+    func rename() {
+        model.apply(.phoneConnected(phoneA, address: nil, features: Set(Feature.all)))
+        model.renameDevice(phoneA, to: "  Work phone ")
+        #expect(model.devices.first { $0.fingerprint == phoneA.fingerprint }?.name == "Work phone")
+        #expect(model.connected?.name == "Work phone")
+        model.apply(.phoneConnected(phoneA, address: nil, features: Set(Feature.all))) // reconnect keeps the name
+        #expect(model.connected?.name == "Work phone")
+        model.renameDevice(phoneA, to: "")
+        #expect(model.connected?.name == "Pixel")
+    }
+
+    @Test("Only web links are sent to the phone")
+    func sendLink() {
+        #expect(model.sendLink("file:///etc/passwd") == .invalid)
+        #expect(model.sendLink("https://example.com") == .notConnected)
+    }
 }

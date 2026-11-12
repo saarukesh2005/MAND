@@ -11,6 +11,7 @@ import dev.mand.android.MandApp
 import dev.mand.android.clipboard.ClipboardBridge
 import dev.mand.android.service.BridgeService
 import dev.mand.core.Feature
+import dev.mand.core.LinkRules
 import dev.mand.android.net.LinkState
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -34,8 +35,14 @@ class ShareActivity : ComponentActivity() {
                 app.settings.awaitLoaded()
                 // A share may arrive before the link is up; give it a few seconds to connect.
                 withTimeoutOrNull(CONNECT_WAIT_MS) { app.client.state.first { it is LinkState.Connected } }
-                val result = app.clipboard.sendText(text)
-                Toast.makeText(this@ShareActivity, ClipboardBridge.describe(result), Toast.LENGTH_SHORT).show()
+                // A shared web page opens on the Mac; any other text goes to the Mac's clipboard.
+                val link = LinkRules.extract(text)
+                if (link != null && app.links.send(link, intent.getStringExtra(Intent.EXTRA_SUBJECT))) {
+                    Toast.makeText(this@ShareActivity, "Opening on your Mac", Toast.LENGTH_SHORT).show()
+                } else {
+                    val result = app.clipboard.sendText(text)
+                    Toast.makeText(this@ShareActivity, ClipboardBridge.describe(result), Toast.LENGTH_SHORT).show()
+                }
                 finish()
             }
             return

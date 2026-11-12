@@ -54,6 +54,9 @@ struct EnvelopeCodecTests {
         .tapKnock, .tapGrab(round: 3, dark: true), .tapDecline(round: 3, why: "paused-app"),
         .tapLight(round: 3, on: false), .tapSeen(round: 3), .tapResult(round: 3, ok: true, why: nil),
         .tapResult(round: 4, ok: false, why: "stayed-lit"),
+        .deviceInfo(DeviceInfo(model: "Pixel 7a", os: "Android 16", storageFree: 5, storageTotal: 10)),
+        .findRing, .findStop, .findState(ringing: false),
+        .linkOpen(url: "https://example.com", title: "Example"), .linkOpen(url: "http://a.b/c", title: nil),
     ]
 
     @Test("Every message type round-trips", arguments: messages)

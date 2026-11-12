@@ -34,6 +34,13 @@ struct SettingsView: View {
                 Text("You choose which phone apps share notifications in M’AND on your phone.")
             }
             Section {
+                Toggle("Open links from my phone straight away", isOn: $settings.openLinksFromPhone)
+            } header: {
+                Text("Links")
+            } footer: {
+                Text("When you share a web page to M’AND on your phone, it opens in your Mac’s browser. Turn this off to put the link on the clipboard instead. Only web links (http and https) are ever opened.")
+            }
+            Section {
                 Toggle("Receive files from Android Quick Share", isOn: Binding(
                     get: { settings.quickShareEnabled },
                     set: { settings.quickShareEnabled = $0; quickShare.sync() }))

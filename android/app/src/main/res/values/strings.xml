@@ -4,5 +4,11 @@
     <string name="channel_status">Connection status</string>
     <string name="channel_status_description">Shows whether M’AND is connected to your Mac.</string>
     <string name="tap_service_label">M’AND Tap to Send</string>
-    <string name="tap_service_description">Touch the top of your phone to your MacBook’s notch to send what’s on screen. M’AND captures the screen only during a tap, lights the screen white and black so your Mac can confirm it’s this phone, and never reads app content. It pauses in the banking and UPI apps you choose.</string>
+    <string name="tap_service_description">Touch your phone to your MacBook to send what’s on your screen. M’AND only looks at the screen during a tap and never reads what’s inside your apps. It stays off in the banking apps you pick.</string>
+    <string name="channel_find">Find my phone</string>
+    <string name="find_title">Your Mac is looking for this phone</string>
+    <string name="find_text">Tap here or press Stop to end the sound.</string>
+    <string name="find_stop">Stop</string>
+    <string name="channel_links">Links from your Mac</string>
+    <string name="link_title">Open link from your Mac</string>
 </resources>

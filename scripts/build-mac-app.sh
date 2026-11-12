@@ -8,7 +8,7 @@ CONFIG="${1:-release}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP="$ROOT/dist/M’AND.app"
 SIGNING_IDENTITY="M’AND Local Dev"
-VERSION="0.4.0"
+VERSION="0.5.0"
 BUILD_NUMBER="$(git -C "$ROOT" rev-list --count HEAD 2>/dev/null || echo 1)"
 
 echo "→ Building MandMac ($CONFIG)…"

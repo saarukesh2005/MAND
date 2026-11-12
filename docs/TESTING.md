@@ -2,7 +2,17 @@
 
 Nothing below says "verified" unless it was actually run. Last updated: 2026-11-12.
 
-## Latest run — v0.4.0 (2026-11-12, on this Mac)
+## Latest run — v0.5.0 (2026-11-12, on this Mac)
+
+| Check | Result |
+|---|---|
+| `scripts/test-mac.sh` | PASS: 87 tests (53 MandMacKit, 21 MandCore incl. 17 new protocol vectors, 7 interop/TLS, 6 MandContext) |
+| `./gradlew :core:test` | PASS: 28 tests (new: LinkRules, Friendly; shared vectors incl. find/link/device.info) |
+| `./gradlew :app:testDebugUnitTest` | PASS: 9 Compose UI tests |
+| `./gradlew :app:lintDebug` | PASS: 0 errors |
+| Find my phone, links, phone details on a real phone | NOT RUN (needs the phone) |
+
+## Previous run — v0.4.0 (2026-11-12, on this Mac)
 
 | Check | Result |
 |---|---|
