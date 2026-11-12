@@ -60,3 +60,13 @@ This starts a test-only Swift server (`MandInteropServer`, never shipped) with a
 - **Secrets:** never commit keys, certificates or keystores (`.gitignore` blocks the common types).
 - **UI:** show only real state. Don't put placeholder data in user-facing flows.
 - **Privacy prompts:** never touch privacy-protected folders (Downloads, Documents, Desktop) at launch. macOS would show an access prompt and block the app.
+
+## End-to-end test on a real Android system (emulator)
+
+`scripts/emulator-e2e.sh` boots an Android 17 emulator (headless), installs the debug app, pairs it with a throwaway test Mac (`MandInteropServer`), and checks:
+- phone details
+- links
+- built-in screen mirroring (frames decoded by macOS)
+- control from the Mac
+
+One-time setup: the `emulator` package and `system-images;android-37.0;google_apis;arm64-v8a` (about 2.4 GB) from `sdkmanager`. If `sdkmanager` stalls, download the image zip directly and unzip it into `system-images/android-37.0/google_apis/`.

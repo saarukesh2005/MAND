@@ -2,7 +2,17 @@
 
 Nothing below says "verified" unless it was actually run. Last updated: 2026-11-12.
 
-## Latest run — v0.5.0 (2026-11-12, on this Mac)
+## Latest run — v0.6.0 (2026-11-12)
+
+| Check | Result |
+|---|---|
+| `scripts/test-mac.sh` | PASS: 94 tests (60 MandMacKit incl. Keychain-failure recovery, H.264, control; 21 MandCore incl. all shared vectors; 7 interop/TLS; 6 MandContext) |
+| `./gradlew :core:test :app:testDebugUnitTest :app:lintDebug` | PASS: 28 core + 9 Compose UI tests, lint 0 errors |
+| `scripts/interop-test.sh` | PASS: Swift server ↔ Java/Kotlin TLS client, all 10 features negotiated |
+| **`scripts/emulator-e2e.sh` (real Android 17 system, Pixel-sized emulator)** | **PASS**: app installs; pairs through the `mand://pair` link with the confirm dialog; mutual-TLS session with all 10 features; `device.info` arrives; a link shared to M’AND arrives at the Mac; built-in mirroring streams 576×1280 H.264 and every frame decodes with the Mac's decoder; with Accessibility on, Home pressed from the Mac takes the phone to its home screen |
+| Same features on your Pixel over real Wi-Fi | NOT RUN (needs your phone). The emulator reaches the Mac through the emulator's network bridge, not Wi-Fi |
+
+## Previous run — v0.5.0 (2026-11-12, on this Mac)
 
 | Check | Result |
 |---|---|

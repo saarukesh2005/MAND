@@ -9,7 +9,6 @@ SDK="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
 ADB="$SDK/platform-tools/adb"
 EMULATOR="$SDK/emulator/emulator"
 AVD="${MAND_AVD:-mand-e2e}"
-IMAGE="system-images;android-37.0;google_apis;arm64-v8a"
 PORT=47900
 WORK="$(mktemp -d)"
 SERVER_PID=""
@@ -50,12 +49,34 @@ tap_text() {
 
 echo "→ Building the phone app and the test Mac server…"
 (cd "$ROOT/android" && ./gradlew :app:assembleDebug --console=plain -q)
-APK="$(ls -t "$HOME"/.mand-build/_app/outputs/apk/debug/app-debug.apk "$ROOT"/android/app/build/outputs/apk/debug/app-debug.apk 2>/dev/null | head -1)"
+APK="$( (ls -t "$HOME"/.mand-build/_app/outputs/apk/debug/app-debug.apk "$ROOT"/android/app/build/outputs/apk/debug/app-debug.apk 2>/dev/null || true) | head -1)"
+[ -n "$APK" ] || { echo "APK not found"; exit 1; }
 (cd "$ROOT/mac" && swift build --product MandInteropServer >/dev/null)
 
 echo "→ Starting the emulator…"
-if ! "$SDK/cmdline-tools/latest/bin/avdmanager" list avd -c | grep -qx "$AVD"; then
-  echo no | "$SDK/cmdline-tools/latest/bin/avdmanager" create avd -n "$AVD" -k "$IMAGE" -d pixel_7 >/dev/null
+# A Pixel-7-sized virtual phone (config written directly; works with a manually unpacked image too).
+AVD_DIR="$HOME/.android/avd/$AVD.avd"
+if [ ! -f "$AVD_DIR/config.ini" ]; then
+  mkdir -p "$AVD_DIR"
+  printf 'avd.ini.encoding=UTF-8\npath=%s\npath.rel=avd/%s.avd\ntarget=android-37\n' "$AVD_DIR" "$AVD" > "$HOME/.android/avd/$AVD.ini"
+  cat > "$AVD_DIR/config.ini" <<CFG
+AvdId=$AVD
+avd.ini.displayname=M’AND test phone
+abi.type=arm64-v8a
+hw.cpu.arch=arm64
+hw.cpu.ncore=4
+image.sysdir.1=system-images/android-37.0/google_apis/arm64-v8a/
+tag.id=google_apis
+hw.lcd.width=1080
+hw.lcd.height=2400
+hw.lcd.density=420
+hw.ramSize=3072
+disk.dataPartition.size=6G
+hw.keyboard=yes
+hw.gpu.enabled=yes
+hw.gpu.mode=swiftshader_indirect
+hw.sensors.proximity=yes
+CFG
 fi
 "$EMULATOR" -avd "$AVD" -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect >"$WORK/emulator.log" 2>&1 &
 EMU_PID=$!
@@ -71,7 +92,7 @@ echo "→ Installing M’AND…"
 pass "Installed $("$ADB" shell dumpsys package dev.mand.android | grep -m1 versionName | tr -d ' \r')"
 
 echo "→ Starting the test Mac (10.0.2.2 is this Mac, seen from the emulator)…"
-MAND_HOSTS=10.0.2.2 MAND_PORT=$PORT MAND_TEST_SCREEN=1 "$ROOT/mac/.build/debug/MandInteropServer" >"$WORK/server.log" 2>&1 &
+MAND_HOSTS=10.0.2.2 MAND_PORT=$PORT MAND_TEST_SCREEN=1 MAND_TEST_CONTROL=1 "$ROOT/mac/.build/debug/MandInteropServer" >"$WORK/server.log" 2>&1 &
 SERVER_PID=$!
 wait_for "^INVITE " 20 || fail "test Mac didn't start"
 INVITE="$(grep -m1 '^INVITE ' "$WORK/server.log" | cut -d' ' -f2-)"
@@ -89,13 +110,26 @@ echo "→ Sharing a web link from the phone…"
 wait_for "^LINK https://example.com/mand" 15 && pass "Link arrived on the Mac" || fail "link didn't arrive"
 
 echo "→ Built-in screen mirroring (the Mac asked when the phone connected)…"
-"$ADB" root >/dev/null 2>&1 || true; sleep 2
+# Switch on M’AND's Accessibility service, as a person would in Settings, so control can be tested too.
+"$ADB" shell settings put secure enabled_accessibility_services dev.mand.android/dev.mand.android.tap.TapService
+"$ADB" shell settings put secure accessibility_enabled 1
+# Root lets the test open the (non-exported) consent screen directly, like tapping the notification.
+"$ADB" root >/dev/null 2>&1 || true; sleep 2; "$ADB" wait-for-device
 "$ADB" shell am start -n dev.mand.android/.screen.ScreenShareActivity >/dev/null 2>&1 || true
-tap_text "Entire screen" >/dev/null 2>&1 || true   # Android 15+: choose what to share
-tap_text "Start now" || tap_text "Share screen" || tap_text "Start" || fail "Android's consent prompt didn't appear"
+# Android 15+ asks what to share ("Share one app" → "Share entire screen"), then "Share screen".
+if tap_text "Share one app"; then tap_text "Share entire screen" || true; fi
+tap_text "Share screen" || tap_text "Start now" || fail "Android's consent prompt didn't appear"
 wait_for "^SCREEN START" 20 && pass "$(grep -m1 '^SCREEN START' "$WORK/server.log")" || fail "screen.start missing"
 wait_for "SCREEN FRAMES 30 " 30 && pass "$(grep 'SCREEN FRAMES' "$WORK/server.log" | tail -1)" || fail "frames didn't arrive"
 grep 'SCREEN FRAMES' "$WORK/server.log" | tail -1 | grep -q "decodable=0" && fail "frames arrived but couldn't be decoded"
+
+echo "→ Control from the Mac (Home button) while sharing…"
+wait_for "^CONTROL available=true" 15 && pass "Phone accepts control (Accessibility on, screen shared)" || fail "control not available"
+"$ADB" shell am start -W -a android.settings.SETTINGS >/dev/null
+wait_for "^CONTROL sent home" 15 || fail "Mac didn't send Home"
+sleep 2
+TOP="$("$ADB" shell dumpsys activity activities | grep -m1 topResumedActivity || true)"
+echo "$TOP" | grep -q "launcher" && pass "Home pressed from the Mac: the phone is on its home screen" || fail "Home didn't work ($TOP)"
 
 echo "--- server log"
 cat "$WORK/server.log"

@@ -40,6 +40,7 @@ let env = ProcessInfo.processInfo.environment
 let hosts = env["MAND_HOSTS"].map { $0.split(separator: ",").map(String.init) } ?? ["127.0.0.1"]
 let port = env["MAND_PORT"].flatMap(UInt16.init) ?? 0
 let askForScreen = env["MAND_TEST_SCREEN"] == "1"
+let testControl = env["MAND_TEST_CONTROL"] == "1"
 let box = Box()
 let server = BridgeServer(identity: identity, store: InMemoryPairedDeviceStore(), deviceName: "Interop Mac",
                           preferredPort: port, advertise: false, addresses: { hosts }) { event in
@@ -75,6 +76,15 @@ let server = BridgeServer(identity: identity, store: InMemoryPairedDeviceStore()
         case .findState(let ringing): print("FIND ringing=\(ringing)")
         case .screenStart(let w, let h): print("SCREEN START \(w)x\(h)")
         case .screenStop(let reason): print("SCREEN STOP \(reason)")
+        case .controlState(let available):
+            print("CONTROL available=\(available)")
+            if available && testControl {
+                // Press Home on the phone, then tap the middle of the screen, a moment later.
+                DispatchQueue.global().asyncAfter(deadline: .now() + 2) {
+                    box.server?.send(.controlKey(.home), to: device.fingerprint)
+                    print("CONTROL sent home")
+                }
+            }
         case .screenFrame(_, let key, let data):
             box.frames += 1
             if (try? box.depacketizer.sampleBuffer(for: data, key: key)) != nil { box.decoded += 1 }
