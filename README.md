@@ -21,6 +21,25 @@ Get the latest version from **[Releases](https://github.com/saarukesh2005/MAND/r
 3. If Play Protect warns that the app is unknown, choose **More details → Install anyway**. The app isn't on the Play Store, so Android can't vouch for it.
 
 ### Install on the Mac
+
+**The easy way.** Paste this into Terminal:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/saarukesh2005/MAND/main/scripts/install-mac.sh | bash
+```
+
+It downloads the latest release, checks it against the SHA-256 published with that
+release, installs it to `/Applications`, and opens it. No security warning to clear.
+
+Anything downloaded by a *browser* gets tagged by macOS, and the Mac then refuses to
+open it until you approve it in Privacy & Security. `curl` sets no such tag, so an app
+installed this way opens straight away. Apple still hasn't checked the app — you are
+choosing to trust this project — which is why the installer verifies the download
+before it installs anything.
+
+To install a specific version, add it on the end: `| bash -s 0.6.0`.
+
+**By hand, if you'd rather not run a script:**
 1. Download the `-mac.zip` and double-click it to unzip.
 2. Drag **M’AND.app** into **Applications**.
 3. Open it. macOS will say it can't check the app, because it isn't notarised by Apple (that needs a paid developer account).
@@ -30,7 +49,9 @@ Get the latest version from **[Releases](https://github.com/saarukesh2005/MAND/r
    ```bash
    xattr -dr com.apple.quarantine "/Applications/M’AND.app"
    ```
-5. The first time, macOS asks to let M’AND use your Keychain (where its security key is kept). Enter your Mac password and click **Always Allow**.
+
+Either way, the first time it runs macOS asks to let M’AND use your Keychain (where its
+security key is kept). Enter your Mac password and click **Always Allow**.
 
 ### Pair
 1. Open M’AND on the Mac and click **Pair a Phone**. A QR code appears. (No app on the phone yet? The pairing window also shows a QR code that opens the download page.)
