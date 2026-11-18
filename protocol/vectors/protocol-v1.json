@@ -436,6 +436,51 @@
       "type": "notification.dismiss"
     },
     {
+      "name": "notification.posted that can be replied to",
+      "json": "{\"v\":1,\"type\":\"notification.posted\",\"id\":\"f65\",\"ts\":1,\"body\":{\"key\":\"0|com.whatsapp|2\",\"app\":\"com.whatsapp\",\"appName\":\"WhatsApp\",\"title\":\"Asha\",\"text\":\"See you at 6\",\"time\":1760000000000,\"canReply\":true}}",
+      "expect": "ok",
+      "type": "notification.posted"
+    },
+    {
+      "name": "notification.posted with canReply not boolean",
+      "json": "{\"v\":1,\"type\":\"notification.posted\",\"id\":\"f66\",\"ts\":1,\"body\":{\"key\":\"k\",\"app\":\"com.x\",\"appName\":\"X\",\"time\":1,\"canReply\":\"yes\"}}",
+      "expect": "error",
+      "code": "malformed",
+      "type": "notification.posted"
+    },
+    {
+      "name": "notification.reply",
+      "json": "{\"v\":1,\"type\":\"notification.reply\",\"id\":\"f67\",\"ts\":1,\"body\":{\"key\":\"0|com.whatsapp|2\",\"text\":\"On my way\"}}",
+      "expect": "ok",
+      "type": "notification.reply"
+    },
+    {
+      "name": "notification.reply without text",
+      "json": "{\"v\":1,\"type\":\"notification.reply\",\"id\":\"f68\",\"ts\":1,\"body\":{\"key\":\"k\"}}",
+      "expect": "error",
+      "code": "malformed",
+      "type": "notification.reply"
+    },
+    {
+      "name": "notification.replied",
+      "json": "{\"v\":1,\"type\":\"notification.replied\",\"id\":\"f69\",\"ts\":1,\"body\":{\"key\":\"k\",\"ok\":true}}",
+      "expect": "ok",
+      "type": "notification.replied"
+    },
+    {
+      "name": "notification.replied with a reason",
+      "json": "{\"v\":1,\"type\":\"notification.replied\",\"id\":\"f6a\",\"ts\":1,\"body\":{\"key\":\"k\",\"ok\":false,\"why\":\"gone\"}}",
+      "expect": "ok",
+      "type": "notification.replied"
+    },
+    {
+      "name": "notification.replied not boolean",
+      "json": "{\"v\":1,\"type\":\"notification.replied\",\"id\":\"f6b\",\"ts\":1,\"body\":{\"key\":\"k\",\"ok\":\"yes\"}}",
+      "expect": "error",
+      "code": "malformed",
+      "type": "notification.replied"
+    },
+    {
       "name": "call.state ringing with caller",
       "json": "{\"v\":1,\"type\":\"call.state\",\"id\":\"c65\",\"ts\":1,\"body\":{\"state\":\"ringing\",\"caller\":\"Amma\"}}",
       "expect": "ok",

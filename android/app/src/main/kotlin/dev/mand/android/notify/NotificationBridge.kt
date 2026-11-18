@@ -6,10 +6,14 @@ import android.provider.Settings
 import dev.mand.android.net.FeatureHandler
 import dev.mand.core.Message
 
-/** Handles the Mac's `notification.dismiss` and reports whether Notification Access is granted. */
+/** Handles the Mac's `notification.dismiss` and `notification.reply`, and reports whether Notification Access is granted. */
 class NotificationBridge(private val context: Context) : FeatureHandler {
     override fun onMessage(message: Message) {
-        if (message is Message.NotificationDismiss) NotificationMirrorService.dismiss(message.key)
+        when (message) {
+            is Message.NotificationDismiss -> NotificationMirrorService.dismiss(message.key)
+            is Message.NotificationReply -> NotificationMirrorService.reply(message.key, message.text)
+            else -> Unit
+        }
     }
 
     fun hasAccess(): Boolean {

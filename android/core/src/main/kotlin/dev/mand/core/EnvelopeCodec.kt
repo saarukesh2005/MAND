@@ -120,9 +120,16 @@ object EnvelopeCodec {
             title = optional(body["title"], 512),
             text = optional(body["text"], 4_096),
             time = long(body["time"], 0..Long.MAX_VALUE),
+            canReply = if (body["canReply"] == null) false else boolean(body["canReply"]) ?: malformed(),
         )
         "notification.removed" -> Message.NotificationRemoved(required(body["key"], 256))
         "notification.dismiss" -> Message.NotificationDismiss(required(body["key"], 256))
+        "notification.reply" -> Message.NotificationReply(
+            required(body["key"], 256), required(body["text"], Message.MAX_REPLY_BYTES),
+        )
+        "notification.replied" -> Message.NotificationReplied(
+            required(body["key"], 256), boolean(body["ok"]) ?: malformed(), optional(body["why"], 64),
+        )
         "call.state" -> Message.CallStateUpdate(
             state = Message.CallState.entries.firstOrNull { it.wire == string(body["state"], 16) } ?: malformed(),
             caller = optional(body["caller"], Message.MAX_NAME_BYTES),
@@ -229,9 +236,16 @@ object EnvelopeCodec {
                 message.title?.let { put("title", it) }
                 message.text?.let { put("text", it) }
                 put("time", message.time)
+                if (message.canReply) put("canReply", true)
             }
             is Message.NotificationRemoved -> put("key", message.key)
             is Message.NotificationDismiss -> put("key", message.key)
+            is Message.NotificationReply -> { put("key", message.key); put("text", message.text) }
+            is Message.NotificationReplied -> {
+                put("key", message.key)
+                put("ok", message.ok)
+                message.why?.let { put("why", it) }
+            }
             is Message.CallStateUpdate -> {
                 put("state", message.state.wire)
                 message.caller?.let { put("caller", it) }

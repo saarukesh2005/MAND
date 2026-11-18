@@ -70,7 +70,7 @@ These are new message types under protocol version 1. Older apps ignore them, as
 | `file.v1` | `file.offer`, `file.accept`, `file.reject`, `file.chunk`, `file.ack`, `file.done`, `file.result`, `file.cancel` |
 | `clipboard.v1` | `clipboard.text` |
 | `device.v1` | `device.status` |
-| `notifications.v1` | `notification.posted`, `notification.removed`, `notification.dismiss` |
+| `notifications.v1` | `notification.posted`, `notification.removed`, `notification.dismiss`, `notification.reply`, `notification.replied` |
 | `calls.v1` | `call.state`, `call.action` |
 | `tap.v1` | `tap.grab`, `tap.light`, `tap.seen`, `tap.result`, `tap.knock`, `tap.decline`, `tap.ready` |
 | `find.v1` | `find.ring`, `find.stop`, `find.state` |
@@ -220,16 +220,33 @@ The phone sends `call.state` on every change of phone state, and only if the use
 ### Notifications (`notifications.v1`)
 | type | direction | body |
 |---|---|---|
-| `notification.posted` | phone → Mac | `{key, app, appName, title?, text?, time}` |
+| `notification.posted` | phone → Mac | `{key, app, appName, title?, text?, time, canReply?}` |
 | `notification.removed` | phone → Mac | `{key}` |
 | `notification.dismiss` | Mac → phone | `{key}` |
+| `notification.reply` | Mac → phone | `{key, text}`: type this into the notification's own reply box |
+| `notification.replied` | phone → Mac | `{key, ok, why?}`: whether the reply went in |
 
 Limits:
 - `key` and `app`: at most 256 bytes.
 - `appName`: at most 128 bytes.
 - `title`: at most 512 bytes.
-- `text`: at most 4,096 bytes. Senders truncate.
+- `text`: at most 4,096 bytes on `notification.posted` and on `notification.reply`. Senders truncate.
+- `why`: at most 64 bytes.
 - `time`: Unix milliseconds.
+
+Replying (added in 0.7):
+- `canReply` is absent on older phones and means `false`. A phone sets it only when the notification
+  carries the app's own reply box (an Android action with a `RemoteInput`). Present but not a boolean
+  is `malformed`, so a careless `"yes"` is rejected rather than quietly ignored.
+- The Mac may send `notification.reply` only for a `key` whose `notification.posted` said `canReply`.
+- The phone fills in that reply box and fires the app's own action, exactly as typing in the shade
+  does. **M’AND never sends the message itself** — the app does, under its own account. M’AND has no
+  access to the conversation, only to the one notification.
+- A phone answers every `notification.reply` with `notification.replied`. On failure `why` is one of
+  `off` (sharing is off), `unknown` (not a notification this phone shared), `gone` (the notification
+  is no longer on the phone), `no-reply-box` (the app offers none) or `send-failed`.
+- A phone replies only to notifications it actually shared with this Mac, so a Mac cannot reach a
+  notification it was never shown.
 
 The phone only sends notifications from apps the user allowed.
 

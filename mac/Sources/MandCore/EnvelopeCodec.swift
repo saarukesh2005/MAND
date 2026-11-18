@@ -130,11 +130,19 @@ public enum EnvelopeCodec {
                 appName: try requiredString(body["appName"], maxBytes: 128),
                 title: try optionalString(body["title"], maxBytes: 512),
                 text: try optionalString(body["text"], maxBytes: 4_096),
-                time: try int64(body["time"], in: 0...Int64.max)))
+                time: try int64(body["time"], in: 0...Int64.max),
+                canReply: try optionalBoolean(body["canReply"]) ?? false))
         case "notification.removed":
             return .notificationRemoved(key: try requiredString(body["key"], maxBytes: 256))
         case "notification.dismiss":
             return .notificationDismiss(key: try requiredString(body["key"], maxBytes: 256))
+        case "notification.reply":
+            return .notificationReply(key: try requiredString(body["key"], maxBytes: 256),
+                                      text: try requiredString(body["text"], maxBytes: Message.maxReplyBytes))
+        case "notification.replied":
+            guard let ok = boolean(body["ok"]) else { throw .malformed }
+            return .notificationReplied(key: try requiredString(body["key"], maxBytes: 256), ok: ok,
+                                        why: try optionalString(body["why"], maxBytes: 64))
         case "call.state":
             guard let raw = body["state"] as? String, let state = Message.CallState(rawValue: raw) else { throw .malformed }
             return .callState(state, caller: try optionalString(body["caller"], maxBytes: Message.maxNameBytes))
@@ -240,7 +248,11 @@ public enum EnvelopeCodec {
             ["key": n.key, "app": n.app, "appName": n.appName, "time": n.time]
                 .merging(n.title.map { ["title": $0] } ?? [:]) { a, _ in a }
                 .merging(n.text.map { ["text": $0] } ?? [:]) { a, _ in a }
+                .merging(n.canReply ? ["canReply": true] : [:]) { a, _ in a }
         case .notificationRemoved(let key), .notificationDismiss(let key): ["key": key]
+        case .notificationReply(let key, let text): ["key": key, "text": text]
+        case .notificationReplied(let key, let ok, let why):
+            why.map { ["key": key, "ok": ok, "why": $0] } ?? ["key": key, "ok": ok]
         case .callState(let state, let caller):
             caller.map { ["state": state.rawValue, "caller": $0] } ?? ["state": state.rawValue]
         case .callAction(let action): ["action": action.rawValue]
@@ -273,6 +285,13 @@ public enum EnvelopeCodec {
         guard let number = value as? NSNumber, !isBoolean(number), !CFNumberIsFloatType(number),
               let exact = Int(exactly: number.int64Value) else { return nil }
         return exact
+    }
+
+    /// Absent is nil; present but not a boolean is `malformed` (so `canReply: "yes"` is rejected, not ignored).
+    private static func optionalBoolean(_ value: Any?) throws(ProtocolError) -> Bool? {
+        guard let value else { return nil }
+        guard let flag = boolean(value) else { throw .malformed }
+        return flag
     }
 
     static func boolean(_ value: Any?) -> Bool? {

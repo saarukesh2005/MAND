@@ -60,9 +60,16 @@ sealed class Message(val type: String) {
         val title: String?,
         val text: String?,
         val time: Long,
+        /** The phone found a reply box on this notification, so the Mac may answer it. Absent on older phones. */
+        val canReply: Boolean = false,
     ) : Message("notification.posted")
     data class NotificationRemoved(val key: String) : Message("notification.removed")
     data class NotificationDismiss(val key: String) : Message("notification.dismiss")
+    /** Mac → phone: type this into the notification's own reply box. */
+    data class NotificationReply(val key: String, val text: String) : Message("notification.reply")
+    /** Phone → Mac: whether the reply went in, so the Mac can stop saying "sending". */
+    data class NotificationReplied(val key: String, val ok: Boolean, val why: String?) :
+        Message("notification.replied")
     data class CallStateUpdate(val state: CallState, val caller: String?) : Message("call.state")
     data class CallActionRequest(val action: CallAction) : Message("call.action")
     data object TapKnock : Message("tap.knock")
@@ -102,6 +109,8 @@ sealed class Message(val type: String) {
     companion object {
         const val MAX_TEXT_BYTES = 16_384
         const val MAX_NAME_BYTES = 128
+        /** A notification reply: long enough for a real message, far short of the clipboard. */
+        const val MAX_REPLY_BYTES = 4_096
         const val MAX_CLIPBOARD_BYTES = 262_144
         const val MAX_FILE_CHUNK_BYTES = 196_608
         const val MAX_FILE_SIZE = 1L shl 40

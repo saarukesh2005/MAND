@@ -70,7 +70,7 @@ Every sharing feature starts **off** until you turn it on.
 | **Connection status**, auto-reconnect, forget device | ✅ | ✅ |
 | **Files both ways:** drag and drop, Share sheet, progress, resume, SHA-256 check | ✅ | ✅ |
 | **Clipboard text:** passwords are never sent | ✅ | ✅ |
-| **Phone notifications on the Mac:** you choose the apps | ✅ | ✅ |
+| **Phone notifications on the Mac:** you choose the apps, and you can **reply from the Mac** to any app that has a reply box | ✅ | ✅ |
 | **Battery, phone model, free storage and connection quality** | ✅ | ✅ |
 | **Find my phone:** make it ring loudly from the Mac, even on silent | ✅ | ✅ |
 | **Links:** share a web page to M’AND and it opens on the Mac, or send one from the Mac to the phone | ✅ | ✅ |
@@ -84,8 +84,13 @@ Every sharing feature starts **off** until you turn it on.
 
 **Honest status:**
 - Tested by the author on a Pixel 7a: pairing, files, clipboard, notifications and battery.
-- Built and tested automatically, but **not yet tried on a real phone**: calls, find my phone, links, Quick Share, Tap to Send, SMS codes and mirroring.
+- Built and tested automatically, but **not yet tried on a real phone**: calls, find my phone, links, Quick Share, Tap to Send, SMS codes, replying to notifications, and mirroring.
 - [docs/TESTING.md](docs/TESTING.md) has every result.
+
+**Replying to notifications:**
+- A reply box appears under a notification only when that app offers one. WhatsApp and most messaging apps do; a bank's OTP alert does not.
+- Your phone types your reply into the app's own reply box and lets **the app** send it. M’AND never sends the message itself and never sees the rest of the conversation — only the one notification.
+- Your phone will only answer notifications it actually shared with your Mac.
 
 **Tap to Send notes:**
 - It reads the MacBook's notch light sensor through an undocumented macOS interface, so a macOS update could break it. It needs a MacBook with a notch and the lid open.

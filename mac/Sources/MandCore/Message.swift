@@ -57,16 +57,20 @@ public struct PhoneNotification: Equatable, Sendable, Identifiable {
     public let title: String?
     public let text: String?
     public let time: Int64
+    /// The phone found a reply box on this notification, so this Mac may answer it. False on older phones.
+    public let canReply: Bool
 
     public var id: String { key }
 
-    public init(key: String, app: String, appName: String, title: String?, text: String?, time: Int64) {
+    public init(key: String, app: String, appName: String, title: String?, text: String?, time: Int64,
+                canReply: Bool = false) {
         self.key = key
         self.app = app
         self.appName = appName
         self.title = title
         self.text = text
         self.time = time
+        self.canReply = canReply
     }
 }
 
@@ -127,6 +131,10 @@ public enum Message: Equatable, Sendable {
     case notificationPosted(PhoneNotification)
     case notificationRemoved(key: String)
     case notificationDismiss(key: String)
+    /// Mac → phone: type this into the notification's own reply box.
+    case notificationReply(key: String, text: String)
+    /// Phone → Mac: whether the reply went in, so the Mac can stop saying "sending".
+    case notificationReplied(key: String, ok: Bool, why: String?)
     case callState(CallState, caller: String?)
     case callAction(CallAction)
     case tapKnock
@@ -161,6 +169,8 @@ public enum Message: Equatable, Sendable {
 
     public static let maxTextBytes = 16_384
     public static let maxNameBytes = 128
+    /// A notification reply: long enough for a real message, far short of the clipboard.
+    public static let maxReplyBytes = 4_096
     public static let maxClipboardBytes = 262_144
     public static let maxFileChunkBytes = 196_608
     public static let maxFileSize: Int64 = 1 << 40
@@ -193,6 +203,8 @@ public enum Message: Equatable, Sendable {
         case .notificationPosted: "notification.posted"
         case .notificationRemoved: "notification.removed"
         case .notificationDismiss: "notification.dismiss"
+        case .notificationReply: "notification.reply"
+        case .notificationReplied: "notification.replied"
         case .callState: "call.state"
         case .callAction: "call.action"
         case .tapKnock: "tap.knock"
@@ -230,7 +242,8 @@ public enum Message: Equatable, Sendable {
         case .linkOpen: Feature.link
         case .screenRequest, .screenStart, .screenFrame, .screenStop: Feature.screen
         case .controlTap, .controlSwipe, .controlKey, .controlState: Feature.control
-        case .notificationPosted, .notificationRemoved, .notificationDismiss: Feature.notifications
+        case .notificationPosted, .notificationRemoved, .notificationDismiss,
+             .notificationReply, .notificationReplied: Feature.notifications
         case .callState, .callAction: Feature.calls
         case .tapKnock, .tapGrab, .tapDecline, .tapLight, .tapSeen, .tapResult, .tapReady: Feature.tap
         default: nil

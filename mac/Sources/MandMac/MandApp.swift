@@ -118,4 +118,6 @@ final class UIState {
     var isLinkSheetShown = false
     var deviceToRename: PairedDevice?
     var renameDraft = ""
+    /// What has been typed into each notification's reply box, by notification key.
+    var replyDrafts: [String: String] = [:]
 }

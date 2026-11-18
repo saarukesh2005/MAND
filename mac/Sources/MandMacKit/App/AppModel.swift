@@ -8,6 +8,30 @@ import Observation
 @MainActor
 @Observable
 public final class AppModel {
+    /// A reply this Mac sent to a phone notification, from the moment it leaves until the phone answers.
+    public enum ReplyState: Equatable, Sendable {
+        case sending
+        case sent
+        case failed(String)
+
+        /// One short line to show the person, in the same plain words the phone uses.
+        public var message: String? {
+            switch self {
+            case .sending: "Sending…"
+            case .sent: "Sent"
+            case .failed(let why):
+                switch why {
+                case "gone": "That notification is gone from your phone."
+                case "no-reply-box": "This app has no reply box."
+                case "unknown": "Your phone doesn’t have this notification any more."
+                case "off": "Notifications are off on your phone."
+                case "send-failed": "Your phone couldn’t send it. Try again."
+                default: "That didn’t send. Try again."
+                }
+            }
+        }
+    }
+
     public enum ServerStatus: Equatable {
         case starting
         case listening(port: UInt16)
@@ -89,6 +113,8 @@ public final class AppModel {
     public private(set) var lastDisconnect: (name: String, reason: String, date: Date)?
     public private(set) var invitation: PairingInvitation?
     public private(set) var pairingNotice: String?
+    /// What happened to a reply this Mac sent, by notification key. Cleared when the notification goes away.
+    public private(set) var replyStates: [String: ReplyState] = [:]
     public private(set) var chat: [ChatLine] = []
     public private(set) var log: [LogLine] = []
     public private(set) var startupError: String?
@@ -504,13 +530,25 @@ public final class AppModel {
         guard let phone = selected else { return }
         server?.send(.notificationDismiss(key: notification.key), to: phone.device.fingerprint)
         update(phone.device.fingerprint) { $0.notifications.removeAll { $0.key == notification.key } }
+        replyStates[notification.key] = nil
         notifier.remove(key: notification.key)
     }
 
     public func clearNotifications() {
         guard let phone = selected else { return }
         update(phone.device.fingerprint) { $0.notifications = [] }
+        replyStates.removeAll()
         notifier.removeAll()
+    }
+
+    /// Answers a phone notification from this Mac. The phone types it into the app's own reply box,
+    /// so the app sends the message itself; this Mac only hears back whether that worked.
+    public func replyToNotification(_ notification: PhoneNotification, text: String) {
+        let reply = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let phone = selected, notification.canReply, !reply.isEmpty else { return }
+        replyStates[notification.key] = .sending
+        server?.send(.notificationReply(key: notification.key, text: reply), to: phone.device.fingerprint)
+        log("Replied to \(notification.appName) on \(phone.device.name)")
     }
 
     public func setNotificationsInMacCenter(_ enabled: Bool) {
@@ -655,7 +693,10 @@ public final class AppModel {
             if settings.notificationsInMacCenter { notifier.show(notification) }
         case .notificationRemoved(let key):
             update(fingerprint) { $0.notifications.removeAll { $0.key == key } }
+            replyStates[key] = nil
             notifier.remove(key: key)
+        case .notificationReplied(let key, let ok, let why):
+            replyStates[key] = ok ? .sent : .failed(why ?? "")
         case .deviceInfo(let info):
             update(fingerprint) { $0.info = info }
         case .findState(let ringing):

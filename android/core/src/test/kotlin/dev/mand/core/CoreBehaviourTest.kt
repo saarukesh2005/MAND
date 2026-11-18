@@ -43,6 +43,7 @@ class CoreBehaviourTest {
             Message.FileAck("t1", 3), Message.FileDone("t1"), Message.FileResult("t1", false, "integrity"),
             Message.FileCancel("t1", "user"), Message.ClipboardText("copied"), Message.DeviceStatus(42, true),
             Message.NotificationPosted("k", "com.x", "X", "T", null, 5),
+            Message.NotificationPosted("k", "com.x", "X", "T", null, 5, canReply = true),
             Message.NotificationRemoved("k"), Message.NotificationDismiss("k"),
             Message.CallStateUpdate(Message.CallState.RINGING, "Amma"), Message.CallStateUpdate(Message.CallState.IDLE, null),
             Message.CallActionRequest(Message.CallAction.DECLINE),
@@ -55,6 +56,9 @@ class CoreBehaviourTest {
             Message.ScreenFrame(7, true, byteArrayOf(0, 0, 0, 1, 0x67, 0x42)), Message.ScreenStop("user"),
             Message.ControlTap(0, 10_000), Message.ControlSwipe(5_000, 8_000, 5_000, 2_000, 300),
             Message.ControlKey(Message.ControlKey.Key.BACK), Message.ControlState(true), Message.TapReady(true),
+            Message.NotificationReply("k", "On my way"),
+            Message.NotificationReplied("k", true, null),
+            Message.NotificationReplied("k", false, "gone"),
         )
         for (message in messages) {
             val envelope = Envelope(message, id = "id-1", timestampMillis = 42)

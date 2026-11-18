@@ -440,7 +440,8 @@ class BridgeClient private constructor(private val context: Context) {
                     is Message.Error -> Log.i(TAG, "Mac reported error ${message.code}")
                     is Message.FileOffer, is Message.FileAccept, is Message.FileReject, is Message.FileChunk,
                     is Message.FileAck, is Message.FileDone, is Message.FileResult, is Message.FileCancel,
-                    is Message.ClipboardText, is Message.NotificationDismiss, is Message.CallActionRequest,
+                    is Message.ClipboardText, is Message.NotificationDismiss, is Message.NotificationReply,
+                    is Message.CallActionRequest,
                     is Message.TapGrab, is Message.TapSeen, is Message.TapResult, is Message.TapReady,
                     is Message.FindRing, is Message.FindStop, is Message.LinkOpen,
                     is Message.ScreenRequest, is Message.ScreenStop,
@@ -451,7 +452,7 @@ class BridgeClient private constructor(private val context: Context) {
                             is Message.FindRing, is Message.FindStop -> Feature.FIND
                             is Message.LinkOpen -> Feature.LINK
                             is Message.ClipboardText -> Feature.CLIPBOARD
-                            is Message.NotificationDismiss -> Feature.NOTIFICATIONS
+                            is Message.NotificationDismiss, is Message.NotificationReply -> Feature.NOTIFICATIONS
                             is Message.CallActionRequest -> Feature.CALLS
                             is Message.TapGrab, is Message.TapSeen, is Message.TapResult, is Message.TapReady -> Feature.TAP
                             else -> Feature.FILES

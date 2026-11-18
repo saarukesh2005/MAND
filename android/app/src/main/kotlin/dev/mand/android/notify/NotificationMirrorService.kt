@@ -1,7 +1,10 @@
 package dev.mand.android.notify
 
 import android.app.Notification
+import android.app.RemoteInput
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Bundle
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import dev.mand.android.MandApp
@@ -65,6 +68,7 @@ class NotificationMirrorService : NotificationListenerService() {
             title = title?.takeIf { it.isNotBlank() }?.truncatedToUtf8Bytes(512),
             text = text?.takeIf { it.isNotBlank() }?.truncatedToUtf8Bytes(4_096),
             time = sbn.postTime,
+            canReply = replyAction(sbn.notification) != null,
         )
     }
 
@@ -94,6 +98,47 @@ class NotificationMirrorService : NotificationListenerService() {
         fun dismiss(key: String) {
             if (!sentKeys.remove(key)) return
             runCatching { instance?.cancelNotification(key) }
+        }
+
+        /**
+         * The app's own "Reply" action, if it has one: an action carrying a [RemoteInput] is what the phone's
+         * notification shade types into. Returns null when the app offers no reply box (most notifications).
+         */
+        private fun replyAction(notification: Notification): Notification.Action? =
+            notification.actions?.firstOrNull { action ->
+                action.actionIntent != null && action.remoteInputs?.any { !it.resultKey.isNullOrEmpty() } == true
+            }
+
+        /**
+         * Answers a notification from the Mac by filling in the app's own reply box and firing its action —
+         * the same path as typing in the shade, so the app sends the message itself. Only notifications
+         * M’AND actually shared can be answered, and the Mac is told what happened either way.
+         */
+        fun reply(key: String, text: String) {
+            val service = instance
+            val app = service?.application as? MandApp
+            fun tell(ok: Boolean, why: String?) {
+                app?.client?.sendAsync(Message.NotificationReplied(key, ok, why))
+            }
+            if (service == null) return tell(false, "off")
+            if (key !in sentKeys) return tell(false, "unknown")
+
+            val sbn = runCatching { service.activeNotifications }.getOrNull()?.firstOrNull { it.key == key }
+                ?: return tell(false, "gone")
+            val action = replyAction(sbn.notification) ?: return tell(false, "no-reply-box")
+            val inputs = action.remoteInputs?.filter { !it.resultKey.isNullOrEmpty() }.orEmpty()
+            if (inputs.isEmpty()) return tell(false, "no-reply-box")
+
+            val outcome = runCatching {
+                val filled = Bundle().apply { inputs.forEach { putCharSequence(it.resultKey, text) } }
+                val intent = Intent().apply {
+                    RemoteInput.addResultsToIntent(inputs.toTypedArray(), this, filled)
+                    // Mark it as typed by a person, so apps that check don't treat it as a bot reply.
+                    RemoteInput.setResultsSource(this, RemoteInput.SOURCE_FREE_FORM_INPUT)
+                }
+                action.actionIntent.send(service, 0, intent)
+            }
+            if (outcome.isSuccess) tell(true, null) else tell(false, "send-failed")
         }
     }
 }

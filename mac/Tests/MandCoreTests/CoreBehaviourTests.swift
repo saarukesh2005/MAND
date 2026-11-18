@@ -49,6 +49,8 @@ struct EnvelopeCodecTests {
         .fileDone(tid: "t1"), .fileResult(tid: "t1", ok: false, reason: "integrity"), .fileCancel(tid: "t1", reason: "user"),
         .clipboardText("copied"), .deviceStatus(battery: 42, charging: true),
         .notificationPosted(PhoneNotification(key: "k", app: "com.x", appName: "X", title: "T", text: nil, time: 5)),
+        .notificationPosted(PhoneNotification(key: "k", app: "com.x", appName: "X", title: "T", text: nil,
+                                              time: 5, canReply: true)),
         .notificationRemoved(key: "k"), .notificationDismiss(key: "k"),
         .callState(.ringing, caller: "Amma"), .callState(.idle, caller: nil), .callAction(.decline),
         .tapKnock, .tapGrab(round: 3, dark: true), .tapDecline(round: 3, why: "paused-app"),
@@ -61,6 +63,9 @@ struct EnvelopeCodecTests {
         .screenFrame(seq: 7, key: true, data: Data([0, 0, 0, 1, 0x67, 0x42])), .screenStop(reason: "user"),
         .controlTap(x: 0, y: 10_000), .controlSwipe(x1: 5_000, y1: 8_000, x2: 5_000, y2: 2_000, ms: 300),
         .controlKey(.back), .controlState(available: true), .tapReady(on: true),
+        .notificationReply(key: "k", text: "On my way"),
+        .notificationReplied(key: "k", ok: true, why: nil),
+        .notificationReplied(key: "k", ok: false, why: "gone"),
     ]
 
     @Test("Every message type round-trips", arguments: messages)

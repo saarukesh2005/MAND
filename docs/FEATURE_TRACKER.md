@@ -66,6 +66,8 @@ Last updated: 2026-11-18.
 | Notification history (persisted) | NOT_STARTED | NOT_STARTED | |
 | Do-not-disturb mode | NOT_STARTED | NOT_STARTED | |
 | Dismissal sync | IMPLEMENTED | IMPLEMENTED | |
+| Reply from the Mac (`notification.reply` / `notification.replied`) | IMPLEMENTED | IMPLEMENTED | shared vectors (7: canReply, reply, replied, and the malformed cases) + round-trips in both languages. The phone fires the app's own `RemoteInput`, so the app sends the message; only notifications M’AND shared can be answered. Not run on a phone |
+| Reply outcome shown on the Mac (Sending… / Sent / why it failed) | IMPLEMENTED | n/a | `AppModel.ReplyState`, cleared when the notification is dismissed or removed |
 | Privacy settings | IMPLEMENTED | IMPLEMENTED | off by default |
 
 ## 05 Device Hub
