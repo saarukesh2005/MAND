@@ -441,7 +441,7 @@ class BridgeClient private constructor(private val context: Context) {
                     is Message.FileOffer, is Message.FileAccept, is Message.FileReject, is Message.FileChunk,
                     is Message.FileAck, is Message.FileDone, is Message.FileResult, is Message.FileCancel,
                     is Message.ClipboardText, is Message.NotificationDismiss, is Message.CallActionRequest,
-                    is Message.TapGrab, is Message.TapSeen, is Message.TapResult,
+                    is Message.TapGrab, is Message.TapSeen, is Message.TapResult, is Message.TapReady,
                     is Message.FindRing, is Message.FindStop, is Message.LinkOpen,
                     is Message.ScreenRequest, is Message.ScreenStop,
                     is Message.ControlTap, is Message.ControlSwipe, is Message.ControlKey -> {
@@ -453,7 +453,7 @@ class BridgeClient private constructor(private val context: Context) {
                             is Message.ClipboardText -> Feature.CLIPBOARD
                             is Message.NotificationDismiss -> Feature.NOTIFICATIONS
                             is Message.CallActionRequest -> Feature.CALLS
-                            is Message.TapGrab, is Message.TapSeen, is Message.TapResult -> Feature.TAP
+                            is Message.TapGrab, is Message.TapSeen, is Message.TapResult, is Message.TapReady -> Feature.TAP
                             else -> Feature.FILES
                         }
                         // Only features the Mac announced in its hello are accepted.

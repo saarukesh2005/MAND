@@ -54,7 +54,7 @@ class CoreBehaviourTest {
             Message.ScreenRequest, Message.ScreenStart(1080, 2400),
             Message.ScreenFrame(7, true, byteArrayOf(0, 0, 0, 1, 0x67, 0x42)), Message.ScreenStop("user"),
             Message.ControlTap(0, 10_000), Message.ControlSwipe(5_000, 8_000, 5_000, 2_000, 300),
-            Message.ControlKey(Message.ControlKey.Key.BACK), Message.ControlState(true),
+            Message.ControlKey(Message.ControlKey.Key.BACK), Message.ControlState(true), Message.TapReady(true),
         )
         for (message in messages) {
             val envelope = Envelope(message, id = "id-1", timestampMillis = 42)

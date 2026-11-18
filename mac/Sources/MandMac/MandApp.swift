@@ -23,6 +23,7 @@ struct MandApp: App {
                 .environment(quickShare)
                 .frame(minWidth: 760, minHeight: 520)
                 .task {
+                    model.onTapPhase = { NotchHUD.shared.show($0) }
                     model.start(identityProvider: { try DeviceIdentity.loadOrCreate(commonName: model.macName) })
                     quickShare.sync()
                 }

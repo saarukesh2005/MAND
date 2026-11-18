@@ -12,6 +12,10 @@ var keychainRef: SecKeychain?
 guard SecKeychainCreate(path, 4, "test", false, nil, &keychainRef) == errSecSuccess, let keychain = keychainRef else {
     print("ERROR keychain"); exit(1)
 }
+// Never auto-lock the throwaway keychain (a locked one makes macOS show a password prompt mid-test).
+var noLock = SecKeychainSettings(version: UInt32(SEC_KEYCHAIN_SETTINGS_VERS1), lockOnSleep: false,
+                                 useLockInterval: false, lockInterval: UInt32.max)
+SecKeychainSetSettings(keychain, &noLock)
 // The throwaway keychain file is deleted on exit (signals from the test script, or a listener failure).
 let keychainPath = path
 @Sendable func cleanup() { unlink(keychainPath) }
@@ -74,6 +78,7 @@ let server = BridgeServer(identity: identity, store: InMemoryPairedDeviceStore()
         case .deviceInfo(let info): print("INFO \(info.model) | \(info.os) | free=\(info.storageFree) total=\(info.storageTotal)")
         case .linkOpen(let url, _): print("LINK \(url)")
         case .findState(let ringing): print("FIND ringing=\(ringing)")
+        case .tapReady(let on): print("TAP READY phone=\(on)")
         case .screenStart(let w, let h): print("SCREEN START \(w)x\(h)")
         case .screenStop(let reason): print("SCREEN STOP \(reason)")
         case .controlState(let available):

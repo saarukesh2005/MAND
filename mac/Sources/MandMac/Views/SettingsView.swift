@@ -6,6 +6,18 @@ struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @Environment(QuickShareController.self) private var quickShare
 
+    /// Where Tap to Send stands, in one sentence.
+    private var tapStatus: String {
+        if model.tapSensorAvailable == false { return "This Mac has no notch light sensor (it needs a MacBook with a notch, lid open)." }
+        let phoneReady = model.phones.contains(where: \.tapReady)
+        switch (model.settings.tapEnabled, phoneReady) {
+        case (true, true): return "Ready. Hold your phone on the notch."
+        case (true, false): return "Ready on this Mac. Now turn it on in M’AND on your phone."
+        case (false, true): return "Your phone is ready. Switch this on."
+        case (false, false): return "Turn it on in M’AND on your phone; this Mac then switches on too."
+        }
+    }
+
     var body: some View {
         @Bindable var settings = model.settings
         Form {
@@ -51,15 +63,12 @@ struct SettingsView: View {
             }
             Section {
                 Toggle("Tap to Send", isOn: Binding(get: { settings.tapEnabled }, set: { model.setTapEnabled($0) }))
-                if settings.tapEnabled, model.tapSensorAvailable == false {
-                    Text("This Mac’s light sensor isn’t available (it needs a MacBook with a notch, lid open).")
-                        .foregroundStyle(.orange)
-                }
+                Text(tapStatus).foregroundStyle(.secondary)
                 if let notice = model.tapNotice { Text(notice).foregroundStyle(.secondary) }
             } header: {
-                Text("Tap to Send (experimental)")
+                Text("Tap to Send")
             } footer: {
-                Text("Hold your phone’s screen against the notch: the phone flashes, and if the Mac sees the flash it sends what’s on the phone’s screen. Also turn on “M’AND Tap to Send” in the phone’s Accessibility settings. Reads the notch light sensor through an undocumented macOS interface (adapted from the open-source TapDrop), so a macOS update can break it. Off by default.")
+                Text("Hold the top of your phone’s screen against the black notch at the top of this screen until the phone buzzes. Whatever is on the phone appears here. Turns on by itself when you switch it on in the phone app. Uses an undocumented macOS sensor interface (from the open-source TapDrop), so a macOS update could affect it.")
             }
             Section("Files") {
                 LabeledContent("Save files from phone in") {

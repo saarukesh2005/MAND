@@ -94,6 +94,7 @@ object EnvelopeCodec {
             Message.ControlKey.Key.entries.firstOrNull { it.wire == string(body["key"], 16) } ?: malformed(),
         )
         "control.state" -> Message.ControlState(boolean(body["available"]) ?: malformed())
+        "tap.ready" -> Message.TapReady(boolean(body["on"]) ?: malformed())
         "screen.request" -> Message.ScreenRequest
         "screen.start" -> Message.ScreenStart(
             long(body["width"], 16L..Message.MAX_SCREEN_SIDE).toInt(),
@@ -263,6 +264,7 @@ object EnvelopeCodec {
                 put("data", Base64Url.encode(message.data))
             }
             is Message.ScreenStop -> put("reason", message.reason)
+            is Message.TapReady -> put("on", message.on)
             is Message.ControlTap -> { put("x", message.x); put("y", message.y) }
             is Message.ControlSwipe -> {
                 put("x1", message.x1); put("y1", message.y1); put("x2", message.x2); put("y2", message.y2)

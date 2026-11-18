@@ -4,7 +4,7 @@ Statuses: **NOT_STARTED · IN_PROGRESS · IMPLEMENTED · TESTED · BLOCKED**.
 - **TESTED** means automated tests passed in this repo (evidence column), or a user report on a real device (marked *device: user*).
 - Nothing is TESTED on the strength of compiling alone.
 
-Last updated: 2026-11-12.
+Last updated: 2026-11-18.
 
 ## 01 Connect
 | Feature | Mac | Android | Evidence / notes |
@@ -123,6 +123,10 @@ Last updated: 2026-11-12.
 | Phone: send what's on screen (screenshot; original file; circled text) | n/a | IMPLEMENTED (screenshot only) | AccessibilityService.takeScreenshot → file.v1; original-file and circled-text modes not started |
 | SMS one-time codes → Mac clipboard (opt-in, RECEIVE_SMS) | IMPLEMENTED | IMPLEMENTED | `Otp.find` TESTED (3 tests); receiver sends via clipboard.v1; not run on a phone |
 | Pause in banking/UPI apps (editable list) | n/a | IMPLEMENTED | default list of 10 UPI/bank apps, editable in the Tap card |
+| Readiness both ways (`tap.ready`): each side says whether it is on, so the other can ask the person to switch it on instead of failing a round | IMPLEMENTED | IMPLEMENTED | shared vectors (ok + malformed) + round-trips in both languages; `tapMacReady` on the phone, guided setup in the Tap card |
+| Guided setup on the phone (try → allow restricted → turn on, each opening the exact screen) | n/a | IMPLEMENTED | `tap/TapSetup.kt` + `ui/TapGuide.kt`; worked out on Android 17 for apps installed from a file; not run on a phone |
+| Notch HUD on the Mac: the round's progress shown at the notch itself | IMPLEMENTED | n/a | `Views/NotchHUD.swift`, driven by `onTapPhase` |
+| Buzz on the phone for the outcome: one firm buzz when it sent, two short when it didn't | n/a | IMPLEMENTED | `VibrationEffect` heavy/double click; failure reasons worded the same in both apps |
 | Settings toggle + status line (Mac) | IMPLEMENTED | n/a | Settings → Tap to Send (off by default), outcome shown in Home; live lux meter not started |
 | Real tap on hardware | BLOCKED | BLOCKED | needs the lid open and the Pixel connected |
 

@@ -56,6 +56,8 @@ class TapService : AccessibilityService(), SensorEventListener {
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
+        // Tell the Mac: it switches its side on by itself, so there's only one place to set this up.
+        if (app.client.macSupports(Feature.TAP)) app.client.sendAsync(Message.TapReady(true))
         val sensors = getSystemService(SensorManager::class.java)
         sensors.getDefaultSensor(Sensor.TYPE_PROXIMITY)?.let { sensors.registerListener(this, it, SensorManager.SENSOR_DELAY_UI) }
         lastFarAt = SystemClock.elapsedRealtime()
@@ -63,6 +65,7 @@ class TapService : AccessibilityService(), SensorEventListener {
 
     override fun onDestroy() {
         if (instance === this) instance = null
+        if (app.client.macSupports(Feature.TAP)) app.client.sendAsync(Message.TapReady(false))
         getSystemService(SensorManager::class.java).unregisterListener(this)
         removeOverlay()
         super.onDestroy()
@@ -151,11 +154,15 @@ class TapService : AccessibilityService(), SensorEventListener {
         capture = null
         round = 0
         if (sent && file != null) {
+            buzz(success = true) // the signal to stop holding
             scope.launch { app.files.sendOwnFile(file, file.name) }
-            toast("Sending to your Mac")
+            toast("Sent to your Mac ✓")
         } else {
             file?.delete()
-            if (why != null && why != "other-phone") toast(explain(why))
+            if (why != null && why !in setOf("other-phone", "stopped")) {
+                buzz(success = false)
+                toast(explain(why))
+            }
         }
     }
 
@@ -202,7 +209,17 @@ class TapService : AccessibilityService(), SensorEventListener {
         return file
     }
 
-    private fun toast(text: String) = main.post { Toast.makeText(this, text, Toast.LENGTH_SHORT).show() }
+    private fun toast(text: String) = main.post { Toast.makeText(this, text, Toast.LENGTH_LONG).show() }
+
+    /** One firm buzz when it worked (so people know to stop holding); two short ones when it didn't. */
+    private fun buzz(success: Boolean) {
+        val effect = if (success) {
+            android.os.VibrationEffect.createPredefined(android.os.VibrationEffect.EFFECT_HEAVY_CLICK)
+        } else {
+            android.os.VibrationEffect.createPredefined(android.os.VibrationEffect.EFFECT_DOUBLE_CLICK)
+        }
+        runCatching { getSystemService(android.os.VibratorManager::class.java).defaultVibrator.vibrate(effect) }
+    }
 
     companion object {
         private const val KNOCK_FAR_MS = 500L
@@ -212,12 +229,15 @@ class TapService : AccessibilityService(), SensorEventListener {
         @Volatile var instance: TapService? = null
             private set
 
+        /** One short instruction per failure, in the same words as the Mac. */
         fun explain(why: String): String = when (why) {
-            "not-seen" -> "Your Mac didn’t see the screen light. Hold the top of the phone right on the notch."
-            "stayed-lit" -> "Your Mac couldn’t confirm it was this phone. Hold it flat against the notch."
-            "no-light-sent", "no-key-off", "timeout" -> "Tap didn’t finish in time. Try again."
-            "phone-left" -> "The phone moved away too soon."
-            else -> "Tap didn’t send ($why)."
+            "not-seen", "no-light-sent", "no-key-on", "capture-failed" -> "Touch the top of the screen right on the black notch."
+            "stayed-lit", "too-far", "weak" -> "Press the phone flat against the notch."
+            "timeout", "no-key-off", "phone-left" -> "Hold still a little longer, until it buzzes."
+            "off" -> "Turn on Tap to Send on your Mac."
+            "secure-screen" -> "This screen is private, so it can’t be sent."
+            "paused-app" -> "Tap to Send is off in this app."
+            else -> "That didn’t work. Try again."
         }
 
         fun isEnabled(context: Context): Boolean {
@@ -232,9 +252,18 @@ class TapService : AccessibilityService(), SensorEventListener {
 
 /** Routes the Mac's tap.* messages to the service (declines when it isn't switched on). */
 class TapBridge(private val app: MandApp) : dev.mand.android.net.FeatureHandler {
+    override fun onConnected(macFeatures: Set<String>) {
+        if (Feature.TAP in macFeatures) app.client.sendAsync(Message.TapReady(TapService.instance != null))
+    }
+
+    override fun onDisconnected() {
+        app.tapMacReady.value = false
+    }
+
     override fun onMessage(message: Message) {
         val service = TapService.instance
         when (message) {
+            is Message.TapReady -> app.tapMacReady.value = message.on
             is Message.TapGrab -> service?.onGrab(message.round)
                 ?: app.client.sendAsync(Message.TapDecline(message.round, "off"))
             is Message.TapSeen -> service?.onSeen(message.round)

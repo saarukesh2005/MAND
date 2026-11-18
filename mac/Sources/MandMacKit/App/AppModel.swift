@@ -59,6 +59,8 @@ public final class AppModel {
         public var isRinging = false
         /// The phone accepts taps and swipes from this Mac (only while it shares its screen).
         public var canControl = false
+        /// The phone has Tap to Send switched on (its Accessibility service is running).
+        public var tapReady = false
         public let connectedAt: Date
 
         public var id: String { device.fingerprint.hex }
@@ -123,6 +125,10 @@ public final class AppModel {
     private let downloadFolderBox = LockedValue(AppSettings.defaultDownloadFolder)
     private var wakeObserver: NSObjectProtocol?
     private var tap: TapCoordinator?
+    /// Phones whose tap just passed; their next "Tap …" file opens automatically.
+    private var tapExpectingFile: [Fingerprint: Date] = [:]
+    /// Called on every tap step so the app can show the notch pill.
+    public var onTapPhase: ((TapPhase) -> Void)?
 
     public init(macName: String, settings: AppSettings = AppSettings(),
                 historyStore: TransferHistoryStore = TransferHistoryStore()) {
@@ -344,6 +350,7 @@ public final class AppModel {
         liveByDevice[device.fingerprint] = items.filter { !$0.isFinished }
         let known = Set(history.map(\.id))
         let finished = items.filter { $0.isFinished && !known.contains($0.id) }
+        finished.forEach { showTapResultIfExpected($0, from: device.fingerprint) }
         if !finished.isEmpty {
             history = Array((history + finished.map {
                 TransferRecord(item: $0, deviceName: device.name, finishedAt: Date())
@@ -382,10 +389,40 @@ public final class AppModel {
 
     // MARK: - Tap to Send
 
+    /// What the notch pill shows during a tap (see `onTapPhase`).
+    public enum TapPhase: Equatable {
+        case holding
+        case sent(phone: String)
+        case failed(String)
+    }
+
+    /// Ready on this Mac: switched on and the notch light sensor is readable.
+    public var macTapReady: Bool { settings.tapEnabled && tapSensorAvailable != false }
+
+    /// Switched by the person (Settings or Home). Turning it off is remembered, so it isn't turned back on for them.
     public func setTapEnabled(_ enabled: Bool) {
+        settings.tapTurnedOffByUser = !enabled
+        applyTapEnabled(enabled)
+    }
+
+    private func applyTapEnabled(_ enabled: Bool) {
         settings.tapEnabled = enabled
         tapNotice = nil
         tap?.setEnabled(enabled)
+        tellPhonesTapReadiness()
+    }
+
+    /// The phone just switched Tap to Send on: switch the Mac on too, so there's only one place to set it up.
+    func autoEnableTap() {
+        guard !settings.tapEnabled, !settings.tapTurnedOffByUser, tapSensorAvailable != false else { return }
+        applyTapEnabled(true)
+        log("Tap to Send switched on because your phone is ready")
+    }
+
+    private func tellPhonesTapReadiness() {
+        for phone in phones where phone.supports(Feature.tap) {
+            server?.send(.tapReady(on: macTapReady), to: phone.device.fingerprint)
+        }
     }
 
     private func applyTap(_ event: TapCoordinator.Event) {
@@ -394,33 +431,53 @@ public final class AppModel {
         }
         switch event {
         case .availability(let sensor):
+            let changed = tapSensorAvailable != sensor
             tapSensorAvailable = sensor
+            if changed { tellPhonesTapReadiness() }
         case .roundStarted:
-            tapNotice = "Tap noticed — checking the phone’s light…"
+            tapNotice = "Keep holding your phone on the notch…"
+            onTapPhase?(.holding)
         case .passed(let phone):
-            tapNotice = "\(name(phone)) is sending what’s on its screen."
-        case .declined(let phone, let why):
-            tapNotice = "\(name(phone)) didn’t take part: \(Self.tapReason(why))."
-        case .failed(let phone, let why):
-            tapNotice = "Tap didn’t go through\(phone == nil ? "" : " with \(name(phone))"): \(Self.tapReason(why))."
+            tapExpectingFile[phone] = Date()
+            tapNotice = "Got it! \(name(phone)) is sending what’s on its screen."
+            onTapPhase?(.sent(phone: name(phone)))
+        case .declined(_, let why), .failed(_, let why):
+            guard !["other-phone", "stopped", "declined"].contains(why) else { return }
+            let tip = Self.tapReason(why)
+            tapNotice = tip
+            onTapPhase?(.failed(tip))
         }
     }
 
-    static func tapReason(_ code: String) -> String {
+    /// One short, friendly instruction per failure, in the same words as the phone.
+    public static func tapReason(_ code: String) -> String {
         switch code {
-        case "off": "Tap to Send is off on the phone"
-        case "screen-off": "the phone’s screen was off"
-        case "locked": "the phone was locked"
-        case "paused-app": "a paused app (e.g. banking) was open"
-        case "busy": "the phone was busy"
-        case "timeout": "it took too long"
-        case "not-seen": "the Mac couldn’t see the phone’s flash"
-        case "declined": "no phone could take part"
-        case "other-phone": "another phone answered first"
-        case "phone-left": "the phone disconnected"
-        case "stopped": "Tap to Send was turned off"
-        default: code
+        case "not-seen", "no-light-sent", "no-key-on", "capture-failed":
+            "Touch the top of your phone’s screen right on the black notch."
+        case "stayed-lit", "too-far", "weak":
+            "Press the phone flat against the notch."
+        case "timeout", "no-key-off", "phone-left":
+            "Hold still a little longer, until the phone buzzes."
+        case "off": "Turn on Tap to Send on your phone."
+        case "screen-off", "locked": "Unlock your phone first."
+        case "paused-app": "Tap to Send is off in this app (banking apps are skipped)."
+        case "secure-screen": "This screen is private, so it can’t be sent."
+        case "busy": "Wait a second and try again."
+        default: "That didn’t work. Try again."
         }
+    }
+
+    /// After a passed tap, the phone sends a "Tap …" picture: open it in front of the person and copy it.
+    private func showTapResultIfExpected(_ item: FileTransferService.Item, from phone: Fingerprint) {
+        guard item.direction == .incoming, case .done = item.state, item.name.hasPrefix("Tap "),
+              let since = tapExpectingFile[phone], Date().timeIntervalSince(since) < 60,
+              let url = item.savedURL else { return }
+        tapExpectingFile[phone] = nil
+        if let image = NSImage(contentsOf: url) {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.writeObjects([image])
+        }
+        NSWorkspace.shared.open(url)
     }
 
     public func setClipboardEnabled(_ enabled: Bool) {
@@ -549,6 +606,7 @@ public final class AppModel {
             selectedPhoneID = selectedPhoneID ?? device.fingerprint.hex
             if features.contains(Feature.files) { fileService(for: device).connectionChanged(connected: true) }
             tap?.phoneConnected(device.fingerprint, supportsTap: features.contains(Feature.tap))
+            if features.contains(Feature.tap) { server?.send(.tapReady(on: macTapReady), to: device.fingerprint) }
         case .phoneDisconnected(let device, let reason):
             if let phone = phones.first(where: { $0.device.fingerprint == device.fingerprint }) {
                 phone.notifications.forEach { notifier.remove(key: $0.key) }
@@ -604,6 +662,9 @@ public final class AppModel {
             update(fingerprint) { $0.isRinging = ringing }
         case .controlState(let available):
             update(fingerprint) { $0.canControl = available }
+        case .tapReady(let on):
+            update(fingerprint) { $0.tapReady = on }
+            if on { autoEnableTap() }
         case .linkOpen(let url, let title):
             receiveLink(url, title: title, from: device)
         case .callState(let state, let caller):

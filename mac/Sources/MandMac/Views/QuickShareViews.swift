@@ -37,7 +37,7 @@ struct QuickShareConsentSheet: View {
                 Button("Decline", role: .cancel) { quickShare.respond(to: request, accept: false) }
                     .keyboardShortcut(.cancelAction)
                 Button("Accept") { quickShare.respond(to: request, accept: true) }
-                    .buttonStyle(.borderedProminent).tint(Theme.accent).keyboardShortcut(.defaultAction)
+                    .buttonStyle(.pill).keyboardShortcut(.defaultAction)
             }
         }
         .padding(Theme.Space.xl)

@@ -72,7 +72,7 @@ These are new message types under protocol version 1. Older apps ignore them, as
 | `device.v1` | `device.status` |
 | `notifications.v1` | `notification.posted`, `notification.removed`, `notification.dismiss` |
 | `calls.v1` | `call.state`, `call.action` |
-| `tap.v1` | `tap.grab`, `tap.light`, `tap.seen`, `tap.result`, `tap.knock`, `tap.decline` |
+| `tap.v1` | `tap.grab`, `tap.light`, `tap.seen`, `tap.result`, `tap.knock`, `tap.decline`, `tap.ready` |
 | `find.v1` | `find.ring`, `find.stop`, `find.state` |
 | `link.v1` | `link.open` |
 | `screen.v1` | `screen.request`, `screen.start`, `screen.frame`, `screen.stop` |
@@ -191,6 +191,7 @@ Touch the phone to the MacBook's notch to send what's on its screen. Adapted fro
 
 | type | direction | body |
 |---|---|---|
+| `tap.ready` | either way | `{on}`: this side is ready — the phone's Accessibility service is running, or the Mac has Tap to Send switched on with a working sensor |
 | `tap.knock` | phone → Mac | `{}`: the phone's proximity sensor says it was just put against something |
 | `tap.grab` | Mac → phone | `{round, dark}`: start a light key (`round` ≥ 1; `dark` = the room is dark) |
 | `tap.decline` | phone → Mac | `{round, why}`: not now (e.g. `paused-app`, `locked`, `off`) |
@@ -202,6 +203,11 @@ Rules:
 - One round at a time.
 - A phone sends nothing for a round unless it got `tap.result{ok:true}` for it.
 - The Mac judges the light: white − black ≥ 45 % of this phone's learned contact level, and in a lit room the black phone must block the room light.
+- `tap.ready` (added in 0.7) is sent on connect and whenever a side's readiness changes, so each app can
+  say "turn it on over there" instead of failing a round for a reason the person cannot see. A side that
+  receives `tap.ready{on:false}` must treat the other side as not ready until it says otherwise, and must
+  assume not-ready on disconnect. It is only sent when the other side announced `tap.v1` in its hello.
+  A non-boolean `on` is `malformed`. Older builds ignore it as an unknown type.
 
 ### Calls (`calls.v1`)
 | type | direction | body |

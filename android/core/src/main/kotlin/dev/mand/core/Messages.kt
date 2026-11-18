@@ -71,6 +71,8 @@ sealed class Message(val type: String) {
     data class TapLight(val round: Long, val on: Boolean) : Message("tap.light")
     data class TapSeen(val round: Long) : Message("tap.seen")
     data class TapResult(val round: Long, val ok: Boolean, val why: String?) : Message("tap.result")
+    /** Each side says whether Tap to Send is ready on it (phone: service on; Mac: switched on with a sensor). */
+    data class TapReady(val on: Boolean) : Message("tap.ready")
     data class DeviceInfo(val model: String, val os: String, val storageFree: Long, val storageTotal: Long) :
         Message("device.info")
     data object FindRing : Message("find.ring")

@@ -30,6 +30,8 @@ class MandApp : Application() {
         private set
     lateinit var remoteControl: dev.mand.android.screen.RemoteControl
         private set
+    /** The connected Mac has Tap to Send switched on with a working sensor (from its `tap.ready`). */
+    val tapMacReady = kotlinx.coroutines.flow.MutableStateFlow(false)
 
     override fun onCreate() {
         super.onCreate()

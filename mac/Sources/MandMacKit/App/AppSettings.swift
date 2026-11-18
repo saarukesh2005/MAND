@@ -24,6 +24,8 @@ public final class AppSettings {
     public var quickShareEnabled: Bool { didSet { defaults.set(quickShareEnabled, forKey: Keys.quickShareEnabled) } }
     /// Tap to Send (reads the notch light sensor through a private API); off until the user turns it on.
     public var tapEnabled: Bool { didSet { defaults.set(tapEnabled, forKey: Keys.tapEnabled) } }
+    /// The person switched Tap to Send off on this Mac themselves, so it isn't switched back on automatically.
+    public var tapTurnedOffByUser: Bool { didSet { defaults.set(tapTurnedOffByUser, forKey: Keys.tapTurnedOffByUser) } }
     /// Links shared from the phone open in the Mac's browser straight away (on by default: sharing is deliberate).
     public var openLinksFromPhone: Bool { didSet { defaults.set(openLinksFromPhone, forKey: Keys.openLinksFromPhone) } }
     /// Names the user gave paired phones on this Mac, by fingerprint (hex).
@@ -39,6 +41,7 @@ public final class AppSettings {
         static let hasCompletedOnboarding = "hasCompletedOnboarding"
         static let quickShareEnabled = "quickShareEnabled"
         static let tapEnabled = "tapEnabled"
+        static let tapTurnedOffByUser = "tapTurnedOffByUser"
         static let openLinksFromPhone = "openLinksFromPhone"
         static let deviceAliases = "deviceAliases"
     }
@@ -60,6 +63,7 @@ public final class AppSettings {
         hasCompletedOnboarding = defaults.bool(forKey: Keys.hasCompletedOnboarding)
         quickShareEnabled = defaults.bool(forKey: Keys.quickShareEnabled)
         tapEnabled = defaults.bool(forKey: Keys.tapEnabled)
+        tapTurnedOffByUser = defaults.bool(forKey: Keys.tapTurnedOffByUser)
         openLinksFromPhone = defaults.object(forKey: Keys.openLinksFromPhone) as? Bool ?? true
         deviceAliases = defaults.dictionary(forKey: Keys.deviceAliases) as? [String: String] ?? [:]
     }

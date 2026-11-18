@@ -100,6 +100,9 @@ public enum EnvelopeCodec {
         case "control.state":
             guard let available = boolean(body["available"]) else { throw .malformed }
             return .controlState(available: available)
+        case "tap.ready":
+            guard let on = boolean(body["on"]) else { throw .malformed }
+            return .tapReady(on: on)
         case "screen.request": return .screenRequest
         case "screen.start":
             return .screenStart(width: Int(try int64(body["width"], in: 16...Int64(Message.maxScreenSide))),
@@ -245,6 +248,7 @@ public enum EnvelopeCodec {
         case .screenStart(let width, let height): ["width": width, "height": height]
         case .screenFrame(let seq, let key, let data): ["seq": seq, "key": key, "data": data.base64URLEncoded]
         case .screenStop(let reason): ["reason": reason]
+        case .tapReady(let on): ["on": on]
         case .controlTap(let x, let y): ["x": x, "y": y]
         case .controlSwipe(let x1, let y1, let x2, let y2, let ms): ["x1": x1, "y1": y1, "x2": x2, "y2": y2, "ms": ms]
         case .controlKey(let key): ["key": key.rawValue]

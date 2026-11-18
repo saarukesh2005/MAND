@@ -746,6 +746,18 @@
       "json": "{\"v\":1,\"type\":\"control.state\",\"id\":\"c6\",\"ts\":1,\"body\":{\"available\":false}}",
       "expect": "ok",
       "type": "control.state"
+    },
+    {
+      "name": "tap.ready",
+      "json": "{\"v\":1,\"type\":\"tap.ready\",\"id\":\"r0\",\"ts\":1,\"body\":{\"on\":true}}",
+      "expect": "ok",
+      "type": "tap.ready"
+    },
+    {
+      "name": "tap.ready not boolean",
+      "json": "{\"v\":1,\"type\":\"tap.ready\",\"id\":\"r1\",\"ts\":1,\"body\":{\"on\":\"yes\"}}",
+      "expect": "error",
+      "code": "malformed"
     }
   ],
   "versionNegotiation": [

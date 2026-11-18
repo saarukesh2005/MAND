@@ -88,7 +88,7 @@ fun HomeScreen(
     val chat by client.chat.collectAsStateWithLifecycle()
     var confirmForget by rememberSaveable { mutableStateOf(false) }
 
-    Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
+    Surface(color = Color.Transparent, modifier = Modifier.fillMaxSize().background(pageBrush())) {
         Column(
             modifier = Modifier
                 .safeDrawingPadding()
@@ -105,10 +105,10 @@ fun HomeScreen(
                 Text("Your phone. Your Mac. One ecosystem.", style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            StatusHero(state, phoneSecurityCode, actions)
+            Box(Modifier.entrance(0)) { StatusHero(state, phoneSecurityCode, actions) }
             when (state) {
-                is LinkState.Connected -> MessagesCard(chat, client::sendText)
-                is LinkState.Searching -> TroubleshootingCard(client, state as LinkState.Searching)
+                is LinkState.Connected -> Box(Modifier.entrance(1)) { MessagesCard(chat, client::sendText) }
+                is LinkState.Searching -> Box(Modifier.entrance(1)) { TroubleshootingCard(client, state as LinkState.Searching) }
                 else -> Unit
             }
             val paired = state !is LinkState.NotPaired && state !is LinkState.Pairing
@@ -154,8 +154,10 @@ fun HomeScreen(
 /** The glanceable status: what's connected, and the one action that fixes the current problem. */
 @Composable
 internal fun StatusHero(state: LinkState, phoneSecurityCode: String?, actions: HomeActions) {
-    val look = describe(state)
-    MandCard {
+    HeroPanel {
+      // The hero is always dark (like the design), so it uses the dark colour scheme whatever the phone's mode.
+      OnDark {
+        val look = describe(state)
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(64.dp), contentAlignment = Alignment.Center) {
                 Box(
@@ -207,6 +209,7 @@ internal fun StatusHero(state: LinkState, phoneSecurityCode: String?, actions: H
             else -> Unit
         }
     }
+      }
 }
 
 private data class StatusLook(

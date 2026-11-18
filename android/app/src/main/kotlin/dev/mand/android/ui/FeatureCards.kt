@@ -243,18 +243,19 @@ private fun TapCard(app: MandApp, connected: Boolean, tapEnabled: Boolean, actio
     val prefs by app.settings.prefs.collectAsStateWithLifecycle()
     var choosing by rememberSaveable { mutableStateOf(false) }
     var smsDenied by rememberSaveable { mutableStateOf(false) }
+    val context = LocalContext.current
+    val macReady by app.tapMacReady.collectAsStateWithLifecycle()
+    var step by remember(tapEnabled) { mutableStateOf(dev.mand.android.tap.TapSetup.step(context)) }
+    TapGuide(
+        step = if (tapEnabled) dev.mand.android.tap.TapSetup.Step.DONE else step,
+        connected = connected,
+        macReady = macReady,
+        onStepDone = { step = dev.mand.android.tap.TapSetup.step(context) },
+    )
     SectionCard(
-        title = "Tap to Send (experimental)",
-        subtitle = "Touch the top of your phone to your MacBook’s notch to send what’s on your screen.",
+        title = "Tap to Send extras",
+        subtitle = "Optional. Tap to Send works without these.",
     ) {
-        if (tapEnabled) {
-            Hint(if (connected && app.client.macSupports(Feature.TAP)) "Ready. Also turn on Tap to Send on your Mac." else "On. Waiting for your Mac to connect.")
-        } else {
-            Text("Turn it on in 3 steps:", style = MaterialTheme.typography.bodyMedium)
-            Hint("1. Tap the button below.\n2. Choose “M’AND Tap to Send and control”.\n3. Turn it on and tap Allow.")
-            Hint("If it’s greyed out: long-press the M’AND icon → App info → ⋮ (top right) → Allow restricted settings, then try again.")
-        }
-        OutlinedButton(onClick = actions.openAccessibility) { Text(if (tapEnabled) "Tap to Send settings" else "Turn on Tap to Send") }
         ButtonRow {
             Text(
                 "Stays off in ${Friendly.count(prefs.tapPausedApps.size, "banking app")}",

@@ -13,7 +13,7 @@ struct DevicesView: View {
                 } description: {
                     Text("Phones you pair appear here. You can remove them at any time.")
                 } actions: {
-                    Button("Pair a Phone") { model.startPairing() }.buttonStyle(.borderedProminent)
+                    Button("Pair a Phone") { model.startPairing() }.buttonStyle(.pill)
                 }
             } else {
                 List {

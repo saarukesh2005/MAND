@@ -135,6 +135,8 @@ public enum Message: Equatable, Sendable {
     case tapLight(round: Int64, on: Bool)
     case tapSeen(round: Int64)
     case tapResult(round: Int64, ok: Bool, why: String?)
+    /// Each side says whether Tap to Send is ready on it (phone: service on; Mac: switched on with a sensor).
+    case tapReady(on: Bool)
     case deviceInfo(DeviceInfo)
     case findRing
     case findStop
@@ -199,6 +201,7 @@ public enum Message: Equatable, Sendable {
         case .tapLight: "tap.light"
         case .tapSeen: "tap.seen"
         case .tapResult: "tap.result"
+        case .tapReady: "tap.ready"
         case .deviceInfo: "device.info"
         case .findRing: "find.ring"
         case .findStop: "find.stop"
@@ -229,7 +232,7 @@ public enum Message: Equatable, Sendable {
         case .controlTap, .controlSwipe, .controlKey, .controlState: Feature.control
         case .notificationPosted, .notificationRemoved, .notificationDismiss: Feature.notifications
         case .callState, .callAction: Feature.calls
-        case .tapKnock, .tapGrab, .tapDecline, .tapLight, .tapSeen, .tapResult: Feature.tap
+        case .tapKnock, .tapGrab, .tapDecline, .tapLight, .tapSeen, .tapResult, .tapReady: Feature.tap
         default: nil
         }
     }

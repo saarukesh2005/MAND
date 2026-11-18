@@ -52,6 +52,8 @@ struct RootView: View {
                 }
             }
             .navigationTitle(ui.section.rawValue)
+            .background(Theme.page.ignoresSafeArea())
+            .animation(.spring(response: 0.4, dampingFraction: 0.85), value: ui.section)
         }
         .sheet(item: Binding(get: { quickShare.pending.first }, set: { _ in })) { request in
             QuickShareConsentSheet(request: request).environment(quickShare)

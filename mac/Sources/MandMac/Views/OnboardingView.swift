@@ -50,10 +50,10 @@ struct OnboardingView: View {
                 Button("Skip") { finish(pair: false) }.buttonStyle(.link)
                 if ui.onboardingPage < pages.count - 1 {
                     Button("Continue") { ui.onboardingPage += 1 }
-                        .buttonStyle(.borderedProminent).tint(Theme.accent).keyboardShortcut(.defaultAction)
+                        .buttonStyle(.pill).keyboardShortcut(.defaultAction)
                 } else {
                     Button("Pair My Phone") { finish(pair: true) }
-                        .buttonStyle(.borderedProminent).tint(Theme.accent).keyboardShortcut(.defaultAction)
+                        .buttonStyle(.pill).keyboardShortcut(.defaultAction)
                 }
             }
         }

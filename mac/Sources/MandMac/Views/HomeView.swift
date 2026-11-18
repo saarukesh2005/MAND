@@ -5,8 +5,10 @@ import SwiftUI
 
 struct HomeView: View {
     @Environment(AppModel.self) private var model
+    @Environment(UIState.self) private var ui
 
     var body: some View {
+        ZStack(alignment: .bottom) {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Space.xl - 4) {
                 if let problem = model.trustedListProblem {
@@ -16,26 +18,48 @@ struct HomeView: View {
                             Text("Your phone stays paired and will connect as soon as this is fixed.")
                                 .font(.callout).foregroundStyle(.secondary)
                             Button("Try Again") { model.retryTrustedList() }
-                                .buttonStyle(.borderedProminent).tint(Theme.accent).controlSize(.large)
+                                .buttonStyle(.pill)
                         }
                     }
                 }
                 if let ringing = model.ringingPhone { CallBanner(phone: ringing) }
                 if let finding = model.phones.first(where: \.isRinging) { FindBanner(phone: finding) }
-                if model.phones.count > 1 { DeviceSwitcher() }
-                PhoneHero()
+                if model.phones.count > 1 { DeviceSwitcher().entrance(0) }
+                PhoneHero().entrance(1)
                 if model.isConnected {
-                    Card { QuickActions() }
-                    TestMessageCard()
+                    Card { QuickActions() }.entrance(2)
+                    TestMessageCard().entrance(3)
                 } else if case .listening = model.serverStatus, !model.devices.isEmpty {
-                    TroubleshootingCard()
+                    TroubleshootingCard().entrance(2)
                 }
-                FeaturesGrid()
+                FeaturesGrid().entrance(4)
+                Color.clear.frame(height: model.isConnected ? 80 : 0) // room for the floating dock
             }
             .padding(Theme.Space.xl)
             .frame(maxWidth: 860, alignment: .leading)
             .stateAnimation(model.phones.map(\.id))
         }
+        if model.isConnected {
+            FloatingDock(items: [
+                .init(symbol: "square.and.arrow.up", label: "Send Files", isEnabled: model.phoneSupports(Feature.files)) {
+                    FilePicker.pick { model.sendFiles($0) }
+                },
+                .init(symbol: "doc.on.clipboard", label: "Send Clipboard",
+                      isEnabled: model.settings.clipboardEnabled && model.phoneSupports(Feature.clipboard)) { model.sendClipboard() },
+                .init(symbol: "rectangle.on.rectangle", label: "See Phone Screen", isEnabled: model.phoneSupports(Feature.screen)) {
+                    ui.section = .mirroring
+                    model.startPhoneScreen()
+                },
+                .init(symbol: "speaker.wave.3", label: "Find My Phone", isEnabled: model.phoneSupports(Feature.find)) {
+                    model.ringPhone()
+                },
+            ])
+            .padding(.bottom, Theme.Space.l)
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+        }
+        }
+        .background(Theme.page.ignoresSafeArea())
+        .animation(.spring(response: 0.5, dampingFraction: 0.8), value: model.isConnected)
     }
 }
 
@@ -44,14 +68,15 @@ struct PhoneHero: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        Card {
+        HeroCard {
             HStack(alignment: .center, spacing: Theme.Space.l + 2) {
                 DeviceAvatar(connected: model.isConnected, size: 64)
                 VStack(alignment: .leading, spacing: Theme.Space.xs) {
                     HStack(spacing: Theme.Space.s) {
                         StatusDot(connected: model.isConnected)
-                        Text(statusWord).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                        Text(statusWord).font(.system(.caption, design: .rounded).weight(.semibold)).foregroundStyle(.secondary)
                             .textCase(.uppercase)
+                            .contentTransition(.opacity)
                     }
                     Text(title).font(Theme.Font.hero).lineLimit(2)
                     Text(subtitle).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
@@ -67,9 +92,7 @@ struct PhoneHero: View {
                 if let status = model.phoneStatus { BatteryRing(status: status) }
                 if !model.isConnected, case .listening = model.serverStatus {
                     Button(model.devices.isEmpty ? "Pair a Phone" : "Pair Another") { model.startPairing() }
-                        .buttonStyle(.borderedProminent)
-                        .tint(Theme.accent)
-                        .controlSize(.large)
+                        .buttonStyle(.pillOnDark)
                 }
             }
         }
@@ -178,7 +201,7 @@ struct CallBanner: View {
             Button { model.respondToCall(on: phone, answer: true) } label: {
                 Label("Answer", systemImage: "phone.fill")
             }
-            .buttonStyle(.borderedProminent).tint(Theme.accent).controlSize(.large)
+            .buttonStyle(.pill)
         }
         .padding(Theme.Space.l)
         .background(Theme.accent.opacity(0.10), in: RoundedRectangle(cornerRadius: Theme.Radius.large, style: .continuous))
@@ -256,7 +279,7 @@ struct SendLinkSheet: View {
                 Spacer()
                 Button("Cancel", role: .cancel) { dismiss() }.keyboardShortcut(.cancelAction)
                 Button("Send to Phone", action: send)
-                    .buttonStyle(.borderedProminent).tint(Theme.accent)
+                    .buttonStyle(.pill)
                     .keyboardShortcut(.defaultAction)
                     .disabled(ui.linkDraft.trimmingCharacters(in: .whitespaces).isEmpty)
             }
@@ -286,7 +309,7 @@ struct FindBanner: View {
             }
             Spacer()
             Button { model.stopRingingPhone() } label: { Label("Stop", systemImage: "stop.fill") }
-                .buttonStyle(.borderedProminent).tint(Theme.accent).controlSize(.large)
+                .buttonStyle(.pill)
         }
         .padding(Theme.Space.l)
         .background(Theme.accent.opacity(0.10), in: RoundedRectangle(cornerRadius: Theme.Radius.large, style: .continuous))

@@ -32,7 +32,7 @@ struct WifiMirroringCard: View {
                     Button { model.startPhoneScreen() } label: {
                         Label("Show Phone Screen", systemImage: "rectangle.on.rectangle")
                     }
-                    .buttonStyle(.borderedProminent).tint(Theme.accent).controlSize(.large)
+                    .buttonStyle(.pill)
                     .disabled(!model.phoneSupports(Feature.screen))
                     if !model.isConnected {
                         Text("Connect your phone first.").foregroundStyle(.secondary)
@@ -151,7 +151,7 @@ struct UsbMirroringSection: View {
 
     @ViewBuilder private var primaryButton: some View {
         switch model.mirroringState {
-        case .ready, .failed: Button("Start") { model.startMirroring() }.buttonStyle(.borderedProminent).controlSize(.large)
+        case .ready, .failed: Button("Start") { model.startMirroring() }.buttonStyle(.pill)
         case .running: Button("Stop") { model.stopMirroring() }.controlSize(.large)
         case .notInstalled: Button("Check Again") { model.refreshMirroring() }
         }
