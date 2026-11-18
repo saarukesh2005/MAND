@@ -9,7 +9,9 @@ M’AND 0.3.0 is ready for **personal use** on your own devices. It is **not** r
 - [ ] `scripts/interop-test.sh`: pass
 - [ ] `./gradlew :app:assembleRelease`: R8-minified APK builds
 - [ ] `apksigner verify --print-certs`: the certificate SHA-256 matches the installed app (`0290691e…`), otherwise the update won't install
-- [ ] `scripts/build-mac-app.sh`: app is signed by "M’AND Local Dev" (`codesign -dv`)
+- [ ] `scripts/build-mac-app.sh`: app is signed by "M’AND Local Dev" (`codesign -dv`). Check with
+      `security find-identity -v -p codesigning` first: a certificate that exists but is not trusted
+      for code signing is not a valid identity, and the build silently falls back to ad-hoc signing
 - [ ] **Upgrade test:** install over the previous version on the phone; pairing, settings and history are kept
 - [ ] **Real-phone checklist:** run the relevant rows in TESTING.md and record the results
 - [ ] **Protocol:** changes are documented in `protocol/PROTOCOL.md` with shared vectors; older apps still work (unknown messages ignored)

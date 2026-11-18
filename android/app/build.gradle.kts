@@ -9,12 +9,12 @@ android {
 
     defaultConfig {
         applicationId = "dev.mand.android"
-        // The founder's phone runs Android 14+; targeting 36 (Android 16) avoids Android 17's new
-        // ACCESS_LOCAL_NETWORK runtime permission until onboarding for it is built (see docs/DECISIONS.md).
+        // The founder’s phone runs Android 14+. targetSdk 37 (Android 17) means its new
+        // ACCESS_LOCAL_NETWORK runtime permission is handled by the guided setup (see docs/DECISIONS.md).
         minSdk = 34
         targetSdk = 37
-        versionCode = 6
-        versionName = "0.6.0"
+        versionCode = 7
+        versionName = "0.7.0"
     }
 
     buildTypes {

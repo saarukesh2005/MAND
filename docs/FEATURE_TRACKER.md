@@ -211,4 +211,5 @@ Last updated: 2026-11-18.
 | Release build | IMPLEMENTED | TESTED | `.app` signed; APK `apksigner` verified |
 | DMG installer | NOT_STARTED | n/a | |
 | Xcode project | BLOCKED | n/a | Xcode not installed; the Swift package opens in Xcode |
-| Real-device test of v0.3 | n/a | NOT_STARTED | needs the phone |
+| Real Android system test | n/a | TESTED | `scripts/emulator-e2e.sh` on a real Android 17 system (Pixel-sized emulator): install, pair, mutual TLS, all 10 features, mirroring, control. Your own Pixel over real Wi-Fi is still NOT RUN |
+| Live Swift ↔ Kotlin interop | TESTED | TESTED | `scripts/interop-test.sh` PASS 2026-11-18, all 10 features negotiated (the macOS 27 hang in the test server is fixed) |

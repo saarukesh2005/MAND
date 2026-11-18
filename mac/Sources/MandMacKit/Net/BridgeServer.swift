@@ -565,7 +565,7 @@ final class Session {
 }
 
 public enum AppInfo {
-    public static let version = "0.6.0"
+    public static let version = "0.7.0"
     /// Where people download the phone app (shown as a QR code when pairing).
     public static let downloadPage = "https://github.com/saarukesh2005/MAND/releases/latest"
 }

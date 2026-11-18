@@ -1,8 +1,26 @@
 # Testing and verification status
 
-Nothing below says "verified" unless it was actually run. Last updated: 2026-11-12.
+Nothing below says "verified" unless it was actually run. Last updated: 2026-11-18.
 
-## Latest run — v0.6.0 (2026-11-12)
+## Latest run — v0.7.0 (2026-11-18, on this Mac)
+
+| Check | Result |
+|---|---|
+| `scripts/test-mac.sh` | PASS: 94 tests in 4 suites (60 MandMacKit, 21 MandCore incl. all shared vectors, 7 interop/TLS, 6 MandContext). The 7 new notification-reply vectors all ran |
+| `./gradlew :core:test :app:testDebugUnitTest :app:lintDebug` | PASS: 28 core + 9 Compose UI tests, 0 failures, lint 0 errors |
+| `./gradlew :app:assembleRelease` | PASS: R8-minified APK builds |
+| `scripts/interop-test.sh` | PASS: Swift server ↔ Java/Kotlin TLS client, all 10 features negotiated, pairing approved, text echoed both ways |
+| `scripts/build-mac-app.sh` | PASS: `dist/M’AND.app` built, `codesign --verify --strict` clean. **Ad-hoc signed**, not "M’AND Local Dev": that certificate is in the login keychain but is not trusted for code signing (`CSSMERR_TP_NOT_TRUSTED`), so there is no valid identity. Run `scripts/create-dev-signing-cert.sh` to trust it — it needs your login password |
+| **Replying to notifications on a real phone** | **NOT RUN** (needs your Pixel). Everything above proves the two apps agree on the messages, not that WhatsApp accepts the reply |
+| Same for calls, Tap to Send, find my phone, links, Quick Share, mirroring on your Pixel over real Wi-Fi | NOT RUN (needs your phone) |
+
+**Fixed this run:** `scripts/interop-test.sh` had been failing with an empty server log since this Mac
+moved to macOS 27. The cause was `SecKeychainSetSettings` in the test-only `MandInteropServer`, which
+never returns on macOS 27 — it blocks forever inside securityd (`encodeDb`), so the server died at the
+script's 10-second timeout before printing anything. The call only pinned "don't auto-lock" on a
+throwaway keychain that is already created unlocked, so it was removed. No app code was involved.
+
+## Previous run — v0.6.0 (2026-11-12)
 
 | Check | Result |
 |---|---|

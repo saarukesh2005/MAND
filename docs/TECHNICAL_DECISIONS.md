@@ -48,10 +48,10 @@ Each entry records what was decided, why, and what would make us revisit it.
 **Why:** ad-hoc signatures change on every build, so macOS would keep re-asking for Keychain and Local Network access (Apple TN3179). `scripts/create-dev-signing-cert.sh` creates a free "M’AND Local Dev" identity in the login keychain.
 **Not suitable for distribution to others.** That needs an Apple Developer ID ($99 a year) and notarization.
 
-## D9. Android minSdk 34, targetSdk 36
+## D9. Android minSdk 34, targetSdk 37
 **Why:**
 - **minSdk 34:** the founder's phone runs Android 14+, so the newer APIs are available (e.g. NSD `registerServiceInfoCallback`).
-- **targetSdk 36:** targeting 37 (Android 17) activates the new `ACCESS_LOCAL_NETWORK` runtime permission. We'll move to 37 in Milestone 6 together with proper onboarding for it.
+- **targetSdk 37:** Android 17 activates the new `ACCESS_LOCAL_NETWORK` runtime permission, so the first-run onboarding asks for it before pairing, falls back to Settings if the user picked "Don't ask again", and retries the link on resume (`system/LocalNetworkAccess.kt`, `ui/MainActivity.kt`). Phones below API 37 must NOT request it, so the check is version-gated.
 
 ## D10. Foreground service type `connectedDevice`
 **Why:**
@@ -134,4 +134,3 @@ For the "Mirror" module the phone captures its screen with MediaProjection (syst
 ## Open decisions
 - **Real-phone test:** everything in TESTING.md's checklist.
 - **Distribution:** personal sideloading for now. Google's developer verification for sideloaded apps rolls out globally in 2027; recheck the free "limited distribution" option before then.
-- **Android 17 target:** design the `ACCESS_LOCAL_NETWORK` onboarding (Milestone 6).

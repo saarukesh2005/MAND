@@ -2,6 +2,12 @@
 
 Audit date: 2026-10-20. Baseline commit: `1392a89` (v0.2.0).
 
+> **This is a snapshot of v0.2.0, kept as a record — it is not current status.**
+> Much of what it lists has since been fixed, including Android 17 support with
+> `ACCESS_LOCAL_NETWORK` onboarding, first-run onboarding on both apps, multiple phones,
+> per-address pairing throttling, the minified release APK and the accessibility pass.
+> For where the project actually stands, read `FEATURE_TRACKER.md` and `ROADMAP.md`.
+
 ## Baseline results (run 2026-10-20)
 | Check | Result |
 |---|---|
