@@ -12,10 +12,9 @@ var keychainRef: SecKeychain?
 guard SecKeychainCreate(path, 4, "test", false, nil, &keychainRef) == errSecSuccess, let keychain = keychainRef else {
     print("ERROR keychain"); exit(1)
 }
-// Never auto-lock the throwaway keychain (a locked one makes macOS show a password prompt mid-test).
-var noLock = SecKeychainSettings(version: UInt32(SEC_KEYCHAIN_SETTINGS_VERS1), lockOnSleep: false,
-                                 useLockInterval: false, lockInterval: UInt32.max)
-SecKeychainSetSettings(keychain, &noLock)
+// A new keychain is created unlocked with no lock interval, which is all this seconds-long test needs.
+// We deliberately do NOT call SecKeychainSetSettings to pin that: on macOS 27 it never returns — it
+// blocks forever in securityd (`encodeDb`), so the server printed nothing and the test looked hung.
 // The throwaway keychain file is deleted on exit (signals from the test script, or a listener failure).
 let keychainPath = path
 @Sendable func cleanup() { unlink(keychainPath) }

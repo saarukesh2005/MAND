@@ -8,7 +8,7 @@ CONFIG="${1:-release}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP="$ROOT/dist/M’AND.app"
 SIGNING_IDENTITY="M’AND Local Dev"
-VERSION="0.6.0"
+VERSION="0.7.0"
 BUILD_NUMBER="$(git -C "$ROOT" rev-list --count HEAD 2>/dev/null || echo 1)"
 
 echo "→ Building MandMac ($CONFIG)…"
@@ -59,12 +59,17 @@ done
 iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
 
 echo "→ Signing…"
-if security find-certificate -c "$SIGNING_IDENTITY" >/dev/null 2>&1; then
+# A certificate is not enough: codesign needs a *valid* identity, which means the self-signed
+# certificate must also be trusted for code signing. An untrusted one is reported by
+# `find-identity -p codesigning` as CSSMERR_TP_NOT_TRUSTED and makes codesign say
+# "no identity found", so test for the valid identity and fall back instead of failing the build.
+if security find-identity -v -p codesigning 2>/dev/null | grep -qF "$SIGNING_IDENTITY"; then
     codesign --force --sign "$SIGNING_IDENTITY" --timestamp=none "$APP"
 else
-    echo "  ! \"$SIGNING_IDENTITY\" certificate not found — using ad-hoc signing."
-    echo "    macOS may ask for Keychain/Local Network access again after each rebuild."
-    echo "    Run scripts/create-dev-signing-cert.sh once to fix this."
+    echo "  ! No valid \"$SIGNING_IDENTITY\" signing identity — using ad-hoc signing."
+    echo "    The app works, but macOS may ask for Keychain/Local Network access again after"
+    echo "    each rebuild. Run scripts/create-dev-signing-cert.sh once to fix that; it needs"
+    echo "    your login password, because trusting a certificate is a security setting."
     codesign --force --sign - "$APP"
 fi
 codesign --verify --strict "$APP"
